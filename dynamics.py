@@ -77,67 +77,6 @@ class ContinuousMomentum(torch.optim.Optimizer):
         return loss
 
 
-class Momentum(torch.optim.Optimizer):
-    r"""Implements momentum.
-
-    d velocity = -1/tau (velocity + grad)
-     or
-    d velocity = -mu/t (velocity + grad)
-
-    d parameters = dt velocity
-    """
-
-    def __init__(self, params, dt, tau):
-        defaults = dict(dt=dt, tau=tau)
-        super().__init__(params, defaults)
-
-    def step(self, closure=None):
-        """Performs a single optimization step.
-
-        Arguments:
-            closure (callable): A closure that reevaluates the model and
-                returns the loss. Optional for most optimizers.
-        """
-        loss = None
-        if closure is not None:
-            loss = closure()
-
-        for group in self.param_groups:
-            tau = group['tau']
-            dt = group['dt']
-
-            for p in group['params']:
-                if p.grad is None:
-                    continue
-
-                param_state = self.state[p]
-                if 't' not in param_state:
-                    t = param_state['t'] = 0
-                else:
-                    t = param_state['t']
-
-                if tau != 0:
-                    if 'velocity' not in param_state:
-                        v = param_state['velocity'] = torch.zeros_like(p.data)
-                    else:
-                        v = param_state['velocity']
-
-                if tau > 0:
-                    x = math.exp(-1 / tau)
-                    v.mul_(x).add_(-(1 - x), p.grad.data)
-                elif tau < 0:
-                    mu = -tau
-                    x = (t / (t + 1)) ** mu
-                    v.mul_(x).add_(-(1 - x), p.grad.data)
-                else:
-                    v = -p.grad.data
-
-                p.data.add_(dt, v)
-                param_state['t'] += 1
-
-        return loss
-
-
 def batch(f, x, y, out0, size, alpha, chunk):
     if size >= len(x):
         return x, y, out0, 0
@@ -164,7 +103,7 @@ def batch(f, x, y, out0, size, alpha, chunk):
     return xb, yb, out0b, i
 
 
-def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, mom='continuous', op=None, changes_bounds=(1e-4, 1e-2)):
+def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None, changes_bounds=(1e-4, 1e-2)):
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
@@ -177,10 +116,7 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, mom='con
         max_dt = math.inf
         dt = 1e-50
     step_change_dt = 0
-    if mom == 'continuous':
-        optimizer = ContinuousMomentum(f.parameters(), dt=dt, tau=tau)
-    else:
-        optimizer = Momentum(f.parameters(), dt=dt, tau=tau)
+    optimizer = ContinuousMomentum(f.parameters(), dt=dt, tau=tau)
 
     dynamics = []
     checkpoint_generator = loglinspace(0.05, 100)
@@ -304,7 +240,7 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, mom='con
     return f, dynamics
 
 
-def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, mom='continuous', changes_bounds=(1e-4, 1e-2)):
+def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, changes_bounds=(1e-4, 1e-2)):
     # (1 - a f y).relu / a^2  =>  -y theta(1 - a f y) / a
     otr = ktrtr.new_zeros(len(ytr))
     velo = otr.clone()
@@ -343,11 +279,11 @@ def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, mom='continuou
             if t == 0:
                 velo.zero_()
             if tau > 0:
-                x = math.exp(-dt / tau) if mom == 'continuous' else math.exp(-1 / tau)
+                x = math.exp(-dt / tau)
                 velo.mul_(x).add_(-(1 - x), grad)
             elif tau < 0:
                 mu = -tau
-                x = (t / (t + dt)) ** mu if mom == 'continuous' else (step / (step + 1)) ** mu
+                x = (t / (t + dt)) ** mu
                 velo.mul_(x).add_(-(1 - x), grad)
             else:
                 velo.copy_(-grad)

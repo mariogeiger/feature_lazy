@@ -15,7 +15,7 @@ from dynamics import train_kernel, train_regular
 def run_kernel(args, f, xtr, ytr, xte, yte):
     ktrtr, ktetr, ktete = compute_kernels(f, xtr, xte[:len(xtr)])
 
-    otr, dynamics = train_kernel(ktrtr, ytr, args.temp, args.tau, args.train_time, args.alpha, args.mom, (args.df_min, args.df_max))
+    otr, dynamics = train_kernel(ktrtr, ytr, args.temp, args.tau, args.train_time, args.alpha, (args.df_min, args.df_max))
     c = torch.gels(otr.view(-1, 1), ktrtr)[0].flatten()
 
     if len(xte) > len(xtr):
@@ -91,7 +91,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
         return state
 
-    f, dynamics = train_regular(f0, xtr, ytr, args.temp, args.tau, args.train_time, args.alpha, args.chunk, args.mom, op, (args.df_min, args.df_max))
+    f, dynamics = train_regular(f0, xtr, ytr, args.temp, args.tau, args.train_time, args.alpha, args.chunk, op, (args.df_min, args.df_max))
     with torch.no_grad():
         otr = torch.cat([f(xtr[i: i + args.chunk]) - f0(xtr[i: i + args.chunk]) for i in range(0, len(xtr), args.chunk)])
         ote = torch.cat([f(xte[i: i + args.chunk]) - f0(xte[i: i + args.chunk]) for i in range(0, len(xte), args.chunk)])
@@ -238,7 +238,6 @@ def main():
 
     parser.add_argument("--temp", type=float)
     parser.add_argument("--tau", type=float, default=0.0)
-    parser.add_argument("--mom", choices=['step', 'continuous'], required=True)
     parser.add_argument("--train_time", type=float, required=True)
     parser.add_argument("--chunk", type=int, required=True)
 
