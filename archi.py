@@ -7,6 +7,47 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class FC(nn.Module):
+    def __init__(self, d, h, L, act, beta):
+        super().__init__()
+
+        f = d
+        for i in range(L):
+            W = torch.randn(h, f)
+
+            # next two line are here to avoid memory issue when computing the kernel
+            n = max(1, 256**2 // f)
+            W = nn.ParameterList([nn.Parameter(W[j: j+n]) for j in range(0, len(W), n)])
+
+            setattr(self, "W{}".format(i), W)
+
+            self.register_parameter("b{}".format(i), nn.Parameter(torch.zeros(h)))
+            f = h
+
+        self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(1, f)))
+        self.register_parameter("b{}".format(L), nn.Parameter(torch.zeros(1)))
+
+        self.L = L
+        self.act = act
+        self.beta = beta
+
+    def forward(self, x):
+        for i in range(self.L + 1):
+            W = getattr(self, "W{}".format(i))
+            b = getattr(self, "b{}".format(i))
+
+            if isinstance(W, nn.ParameterList):
+                W = torch.cat(list(W))
+
+            f = x.size(1)
+            x = x @ (W.t() / f ** 0.5) + self.beta * b
+
+            if i < self.L:
+                x = self.act(x)
+
+        return x.view(-1)
+
+
 class CV(nn.Module):
     def __init__(self, d, h, L1, L2, act, h_base, fsz, beta, pad, stride_first, split_w=False):
         super().__init__()
@@ -55,48 +96,6 @@ class CV(nn.Module):
         b = getattr(self, "b")
         f = len(W)
         x = x @ (W / f ** 0.5) + self.beta * b
-        return x.view(-1)
-
-
-def mnist_cv(h, d=1, split_w=False):
-    return CV(d, h, 2, 2, torch.relu, 1, 5, 1, 1, True, split_w)
-
-
-class FC(nn.Module):
-    def __init__(self, d, h, L, act, beta):
-        super().__init__()
-
-        f = d
-        for i in range(L):
-            W = torch.randn(h, f)
-            n = max(1, 256**2 // f)
-            W = nn.ParameterList([nn.Parameter(W[j: j+n]) for j in range(0, len(W), n)])
-            setattr(self, "W{}".format(i), W)
-
-            self.register_parameter("b{}".format(i), nn.Parameter(torch.zeros(h)))
-            f = h
-
-        self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(1, f)))
-        self.register_parameter("b{}".format(L), nn.Parameter(torch.zeros(1)))
-
-        self.L = L
-        self.act = act
-        self.beta = beta
-
-    def forward(self, x):
-        for i in range(self.L + 1):
-            W = getattr(self, "W{}".format(i))
-            b = getattr(self, "b{}".format(i))
-
-            if isinstance(W, nn.ParameterList):
-                W = torch.cat(list(W))
-
-            f = x.size(1)
-            x = x @ (W.t() / f ** 0.5) + self.beta * b
-
-            if i < self.L:
-                x = self.act(x)
-
         return x.view(-1)
 
 
