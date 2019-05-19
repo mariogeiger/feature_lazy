@@ -93,16 +93,20 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     f, dynamics = train_regular(f0, xtr, ytr, args.temp, args.tau, args.train_time, args.alpha, args.chunk, op, (args.df_min, args.df_max))
     with torch.no_grad():
+        otr0 = torch.cat([f0(xtr[i: i + args.chunk]) for i in range(0, len(xtr), args.chunk)])
+        ote0 = torch.cat([f0(xte[i: i + args.chunk]) for i in range(0, len(xte), args.chunk)])
         otr = torch.cat([f(xtr[i: i + args.chunk]) - f0(xtr[i: i + args.chunk]) for i in range(0, len(xtr), args.chunk)])
         ote = torch.cat([f(xte[i: i + args.chunk]) - f0(xte[i: i + args.chunk]) for i in range(0, len(xte), args.chunk)])
 
     out = {
         'dynamics': dynamics,
         'train': {
+            'f0': otr0,
             'outputs': otr,
             'labels': ytr,
         },
         'test': {
+            'f0': ote0,
             'outputs': ote,
             'labels': yte,
         }
