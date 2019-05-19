@@ -173,21 +173,21 @@ def execute(args):
     torch.manual_seed(args.init_seed + hash(args.alpha))
     if args.arch == 'cv':
         assert args.init == 'normal'
-        f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=torch.relu, fsz=5, sig_w=2**0.5, sig_b=0, beta=1, pad=1, stride_first=True, split_w=True).to(args.device)
+        f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=lambda x: 2 ** 0.5 * torch.relu(x), fsz=5, beta=1, pad=1, stride_first=True, split_w=True).to(args.device)
     if args.arch == 'wide_resnet':
         f = Wide_ResNet(xtr.size(1), 28, args.h, 1, args.mix_angle, init_).to(args.device)
     if args.arch == 'fc_relu':
         assert args.init == 'normal'
         assert args.L is not None
-        f = FC(args.d, args.h, args.L, torch.relu, 2**0.5, 0).to(args.device)
+        f = FC(args.d, args.h, args.L, lambda x: 2 ** 0.5 * torch.relu(x), 1).to(args.device)
     if args.arch == 'fc_tanh':
         assert args.init == 'normal'
         assert args.L is not None
-        f = FC(args.d, args.h, args.L, torch.tanh, 1, 0).to(args.device)
+        f = FC(args.d, args.h, args.L, torch.tanh, 1).to(args.device)
     if args.arch == 'fc_softplus':
         assert args.init == 'normal'
         assert args.L is not None
-        f = FC(args.d, args.h, args.L, partial(torch.nn.functional.softplus, beta=args.spbeta), args.spsig, 0).to(args.device)
+        f = FC(args.d, args.h, args.L, lambda x: args.spsig * torch.nn.functional.softplus(x, beta=args.spbeta), 1).to(args.device)
 
     torch.manual_seed(args.batch_seed)
     run = run_exp(args, f, xtr, ytr, xte, yte)

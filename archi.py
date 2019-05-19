@@ -8,7 +8,7 @@ import torch.nn.functional as F
 
 
 class CV(nn.Module):
-    def __init__(self, d, h, L1, L2, act, h_base, fsz, sig_w, sig_b, beta, pad, stride_first, split_w=False):
+    def __init__(self, d, h, L1, L2, act, h_base, fsz, beta, pad, stride_first, split_w=False):
         super().__init__()
 
         f1 = d
@@ -21,16 +21,15 @@ class CV(nn.Module):
                 else:
                     self.register_parameter("W{}_{}".format(i, j), nn.Parameter(torch.randn(f2, f1, fsz, fsz)))
 
-                self.register_parameter("b{}_{}".format(i, j), nn.Parameter(sig_b * torch.randn(f2)))
+                self.register_parameter("b{}_{}".format(i, j), nn.Parameter(torch.zeros(f2)))
                 f1 = f2
 
         self.register_parameter("W", nn.Parameter(torch.randn(f1)))
-        self.register_parameter("b", nn.Parameter(sig_b * torch.randn(())))
+        self.register_parameter("b", nn.Parameter(torch.zeros(())))
 
         self.L1 = L1
         self.L2 = L2
         self.act = act
-        self.sig_w = sig_w
         self.beta = beta
         self.pad = pad
         self.stride_first = stride_first
@@ -47,7 +46,7 @@ class CV(nn.Module):
 
                 stride = 2 if j == 0 and (i > 0 or self.stride_first) else 1
                 f = W[0].numel()
-                x = nn.functional.conv2d(x, W * (self.sig_w / f ** 0.5), self.beta * b, stride=stride, padding=self.pad)
+                x = nn.functional.conv2d(x, W / f ** 0.5, self.beta * b, stride=stride, padding=self.pad)
                 x = self.act(x)
 
         x = x.flatten(2).mean(2)
@@ -55,16 +54,16 @@ class CV(nn.Module):
         W = getattr(self, "W")
         b = getattr(self, "b")
         f = len(W)
-        x = x @ (W * (self.sig_w / f ** 0.5)) + b
+        x = x @ (W / f ** 0.5) + self.beta * b
         return x.view(-1)
 
 
 def mnist_cv(h, d=1, split_w=False):
-    return CV(d, h, 2, 2, torch.relu, 1, 5, 2**0.5, 0, 1, 1, True, split_w)
+    return CV(d, h, 2, 2, torch.relu, 1, 5, 1, 1, True, split_w)
 
 
 class FC(nn.Module):
-    def __init__(self, d, h, L, act, sig_w, sig_b):
+    def __init__(self, d, h, L, act, beta):
         super().__init__()
 
         f = d
@@ -74,15 +73,15 @@ class FC(nn.Module):
             W = nn.ParameterList([nn.Parameter(W[j: j+n]) for j in range(0, len(W), n)])
             setattr(self, "W{}".format(i), W)
 
-            self.register_parameter("b{}".format(i), nn.Parameter(sig_b * torch.randn(h)))
+            self.register_parameter("b{}".format(i), nn.Parameter(torch.zeros(h)))
             f = h
 
         self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(1, f)))
-        self.register_parameter("b{}".format(L), nn.Parameter(sig_b * torch.randn(1)))
+        self.register_parameter("b{}".format(L), nn.Parameter(torch.zeros(1)))
 
         self.L = L
         self.act = act
-        self.sig_w = sig_w
+        self.beta = beta
 
     def forward(self, x):
         for i in range(self.L + 1):
@@ -93,7 +92,7 @@ class FC(nn.Module):
                 W = torch.cat(list(W))
 
             f = x.size(1)
-            x = x @ W.t() * (self.sig_w / f ** 0.5) + b
+            x = x @ (W.t() / f ** 0.5) + self.beta * b
 
             if i < self.L:
                 x = self.act(x)
