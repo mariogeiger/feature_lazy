@@ -101,44 +101,6 @@ class FC(nn.Module):
         return x.view(-1)
 
 
-class FC_AVG(nn.Module):
-    def __init__(self, d, h, L, act, sig_w, sig_b, n_avg):
-        super().__init__()
-
-        fi = d
-        for i in range(L + 1):
-            fo = h
-            if n_avg is not None and i == L:
-                fo = n_avg
-
-            W = torch.randn(fo, fi)
-            n = max(1, 256**2 // fi)
-            W = nn.ParameterList([nn.Parameter(W[j: j+n]) for j in range(0, len(W), n)])
-            setattr(self, "W{}".format(i), W)
-
-            self.register_parameter("b{}".format(i), nn.Parameter(sig_b * torch.randn(fo)))
-            fi = fo
-
-        self.L = L
-        self.act = act
-        self.sig_w = sig_w
-
-    def forward(self, x):
-        for i in range(self.L + 1):
-            W = getattr(self, "W{}".format(i))
-            b = getattr(self, "b{}".format(i))
-
-            W = torch.cat(list(W))
-
-            f = x.size(1)
-            x = x @ W.t() * (self.sig_w / f ** 0.5) + b
-
-            if i < self.L:
-                x = self.act(x)
-
-        return x.mean(1)
-
-
 class conv(nn.Module):
     def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, bias=True, gain=1, init_=nn.init.normal_):
         super().__init__()
