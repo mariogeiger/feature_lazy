@@ -63,20 +63,6 @@ def kernel_likelihood(k, y, mu=None):
     if mu is not None:
         y = y - mu
 
-    # Traceback (most recent call last):
-    # File "train3.py", line 166, in <module>
-    #     main()
-    # File "train3.py", line 159, in main
-    #     execute(args)
-    # File "train3.py", line 111, in execute
-    #     run = run_exp(args, f, xtr, ytr, xte, yte)
-    # File "train3.py", line 81, in run_exp
-    #     'nll': kernel_likelihood(ktrtr, ytr),
-    # File "/home/mgeiger/git/tangentnn/conv/kernels.py", line 70, in kernel_likelihood
-    #     e, _ = k.symeig()
-    # RuntimeError: MAGMA syev : Argument 113 : illegal value at /opt/conda/conda-bld/pytorch_1549635019666/wor
-    # k/aten/src/THC/generic/THCTensorMathMagma.cu:231
-
     e, _ = k.symeig()
     u, _ = torch.gels(y.view(-1, 1), k)
 
@@ -85,15 +71,3 @@ def kernel_likelihood(k, y, mu=None):
     ret += e.log().mean()
     ret += 1 + math.log(2 * math.pi)
     return 0.5 * ret
-
-
-def sv_train(ktrtr, ktetr, ytr, c):
-    from sklearn.svm import SVC
-
-    clf = SVC(C=c, kernel='precomputed')
-    clf.fit(ktrtr.cpu().numpy(), ytr.cpu().numpy())
-
-    otr = torch.tensor(clf.decision_function(ktrtr.cpu().numpy()))
-    ote = torch.tensor(clf.decision_function(ktetr.cpu().numpy()))
-
-    return otr, ote
