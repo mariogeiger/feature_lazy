@@ -171,22 +171,25 @@ def execute(args):
 
     torch.manual_seed(args.init_seed + hash(args.alpha))
 
-    if args.arch == 'wide_resnet':
-        f = Wide_ResNet(xtr.size(1), 28, args.h, 1, args.mix_angle).to(args.device)
+    arch, act = args.arch.split('_')
+    if act == 'relu':
+        act = lambda x: 2 ** 0.5 * torch.relu(x)
+    elif act == 'tanh':
+        act = torch.tanh
+    elif act == 'softplus':
+        act = lambda x: args.spsig * torch.nn.functional.softplus(x, beta=args.spbeta)
     else:
-        arch, act = args.arch.split('_')
-        if act == 'relu':
-            act = lambda x: 2 ** 0.5 * torch.relu(x)
-        elif act == 'tanh':
-            act = torch.tanh
-        elif act == 'softplus':
-            act = lambda x: args.spsig * torch.nn.functional.softplus(x, beta=args.spbeta)
+        raise ValueError('act not specified')
 
-        if arch == 'fc':
-            assert args.L is not None
-            f = FC(args.d, args.h, args.L, act, beta=1).to(args.device)
-        elif arch == 'cv':
-            f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, beta=1, pad=1, stride_first=True).to(args.device)
+    if arch == 'fc':
+        assert args.L is not None
+        f = FC(args.d, args.h, args.L, act, beta=1).to(args.device)
+    elif arch == 'cv':
+        f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, beta=1, pad=1, stride_first=True).to(args.device)
+    elif arch == 'resnet':
+        f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
+    else:
+        raise ValueError('arch not specified')
 
     torch.manual_seed(args.batch_seed)
     run = run_exp(args, f, xtr, ytr, xte, yte)

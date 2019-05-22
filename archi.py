@@ -95,7 +95,7 @@ class CV(nn.Module):
 
 
 class conv(nn.Module):
-    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, bias=True, gain=1):
+    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, bias=True):
         super().__init__()
 
         w = torch.randn(out_planes, in_planes, kernel_size, kernel_size)
@@ -106,28 +106,28 @@ class conv(nn.Module):
 
         self.stride = stride
         self.padding = padding
-        self.gain = gain
 
     def forward(self, x):
         w = torch.cat(list(self.w))
-        f = self.gain / w[0].numel() ** 0.5
+        f = 1 / w[0].numel() ** 0.5
         return F.conv2d(x, f * w, self.b, self.stride, self.padding)
 
 class wide_basic(nn.Module):
-    def __init__(self, in_planes, planes, stride=1, mix_angle=45):
+    def __init__(self, in_planes, planes, act, stride=1, mix_angle=45):
         super().__init__()
-        self.conv1 = conv(in_planes, planes, kernel_size=3, padding=1, bias=True, gain=2 ** 0.5)
-        self.conv2 = conv(planes, planes, kernel_size=3, stride=stride, padding=1, bias=True, gain=2 ** 0.5)
+        self.conv1 = conv(in_planes, planes, kernel_size=3, padding=1, bias=True)
+        self.conv2 = conv(planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != planes:
-            self.shortcut = conv(in_planes, planes, kernel_size=1, stride=stride, bias=True, gain=1)
+            self.shortcut = conv(in_planes, planes, kernel_size=1, stride=stride, bias=True)
 
+        self.act = act
         self.mix_angle = mix_angle
 
     def forward(self, x):
-        out = self.conv1(F.relu(x))
-        out = self.conv2(F.relu(out))
+        out = self.conv1(self.act(x))
+        out = self.conv2(self.act(out))
         cut = self.shortcut(x)
 
         a = self.mix_angle * math.pi / 180
@@ -136,7 +136,7 @@ class wide_basic(nn.Module):
         return out
 
 class Wide_ResNet(nn.Module):
-    def __init__(self, d, depth, widen_factor, num_classes, mix_angle=45):
+    def __init__(self, d, depth, widen_factor, act, num_classes, mix_angle=45):
         super().__init__()
         self.in_planes = 16
 
@@ -145,21 +145,22 @@ class Wide_ResNet(nn.Module):
         k = widen_factor
 
         nStages = [16, 16 * k, 32 * k, 64 * k]
-        block = functools.partial(wide_basic, mix_angle=mix_angle)
+        block = functools.partial(wide_basic, act=act, mix_angle=mix_angle)
 
-        self.conv1 = conv(d, nStages[0], kernel_size=3, stride=1, padding=1, bias=True, gain=1)
+        self.conv1 = conv(d, nStages[0], kernel_size=3, stride=1, padding=1, bias=True)
         self.layer1 = self._wide_layer(block, nStages[1], n, stride=1)
         self.layer2 = self._wide_layer(block, nStages[2], n, stride=2)
         self.layer3 = self._wide_layer(block, nStages[3], n, stride=2)
         self.linear = nn.Parameter(torch.randn(num_classes, nStages[3]))
         self.bias = nn.Parameter(torch.zeros(num_classes))
+        self.act = act
 
     def _wide_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
         layers = []
 
         for stride in strides:
-            layers.append(block(self.in_planes, planes, stride))
+            layers.append(block(self.in_planes, planes, stride=stride))
             self.in_planes = planes
 
         return nn.Sequential(*layers)
@@ -169,7 +170,7 @@ class Wide_ResNet(nn.Module):
         out = self.layer1(out)
         out = self.layer2(out)
         out = self.layer3(out)
-        out = F.relu(out)
+        out = self.act(out)
         out = out.flatten(2).mean(2)
 
         f = 1 / self.linear.size(1) ** 0.5
