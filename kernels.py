@@ -1,15 +1,4 @@
 # pylint: disable=no-member, C, not-callable
-import torch
-
-
-def compute_kernel(f, xtr):
-    '''
-    :param f: neural network with scalar output
-    :param xtr: images trainset [P, ...]
-    '''
-    ktrtr, _, _ = compute_kernels(f, xtr, xtr[:1])
-    return ktrtr
-
 
 def compute_kernels(f, xtr, xte):
     from hessian import gradient
@@ -50,24 +39,3 @@ def compute_kernels(f, xtr, xte):
         del jtr, jte
 
     return ktrtr, ktetr, ktete
-
-
-def kernel_likelihood(k, y, mu=None):
-    '''
-    1/P min_a negative log likelihood of (a * k)
-
-    :param k: kernel
-    :param y: labels
-    '''
-    import math
-    if mu is not None:
-        y = y - mu
-
-    e, _ = k.symeig()
-    u, _ = torch.gels(y.view(-1, 1), k)
-
-    ret = 0
-    ret += (y * u.flatten()).mean().log()
-    ret += e.log().mean()
-    ret += 1 + math.log(2 * math.pi)
-    return 0.5 * ret

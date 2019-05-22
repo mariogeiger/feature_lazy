@@ -1,3 +1,4 @@
+# pylint: disable=missing-docstring,global-statement
 """
 
 import time_logging

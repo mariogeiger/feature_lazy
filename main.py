@@ -8,7 +8,7 @@ import torch
 import time_logging
 from archi import CV, FC, Wide_ResNet, normal_orthogonal_
 from dataset import get_binary_dataset, get_binary_pca_dataset
-from kernels import compute_kernels, kernel_likelihood
+from kernels import compute_kernels
 from dynamics import train_kernel, train_regular
 
 
@@ -38,7 +38,6 @@ def run_kernel(args, f, xtr, ytr, xte, yte):
         'kernel': {
             'train': {
                 'value': ktrtr.cpu() if args.store_kernel == 1 else None,
-                'nll': kernel_likelihood(ktrtr, ytr),
                 'diag': ktrtr.diag(),
                 'mean': ktrtr.mean(),
                 'std': ktrtr.std(),
@@ -46,7 +45,6 @@ def run_kernel(args, f, xtr, ytr, xte, yte):
             },
             'test': {
                 'value': ktete.cpu() if args.store_kernel == 1 else None,
-                'nll': kernel_likelihood(ktete, yte[:len(xtr)]),
                 'diag': ktete.diag(),
                 'mean': ktete.mean(),
                 'std': ktete.std(),
@@ -60,13 +58,18 @@ def run_kernel(args, f, xtr, ytr, xte, yte):
 
 def run_regular(args, f0, xtr, ytr, xte, yte):
 
+    def ev(f, x):
+        return torch.cat([f(x[i: i + args.chunk]) for i in range(0, len(x), args.chunk)])
+
+    with torch.no_grad():
+        otr0 = ev(f0, xtr)
+        ote0 = ev(f0, xte)
+
     def op(f, state):
         j = torch.randperm(min(len(xte), len(xtr)))[:10 * args.chunk]
         with torch.no_grad():
-            otr0 = torch.cat([f0(xtr[j[i: i + args.chunk]]) for i in range(0, len(j), args.chunk)])
-            ote0 = torch.cat([f0(xte[j[i: i + args.chunk]]) for i in range(0, len(j), args.chunk)])
-            otr  = torch.cat([ f(xtr[j[i: i + args.chunk]]) for i in range(0, len(j), args.chunk)]) - otr0
-            ote  = torch.cat([ f(xte[j[i: i + args.chunk]]) for i in range(0, len(j), args.chunk)]) - ote0
+            otr = ev(f, xtr[j]) - otr0[j]
+            ote = ev(f, xte[j]) - ote0[j]
 
         last_w = "W{}".format(args.L)
         if hasattr(f, last_w):
@@ -78,25 +81,24 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'err': (otr * ytr[j] <= 0).double().mean().item(),
             'nd': (args.alpha * otr * ytr[j] < 1).long().sum().item(),
             'dfnorm': otr.pow(2).mean().sqrt(),
-            'fnorm': (otr + otr0).pow(2).mean().sqrt(),
+            'fnorm': (otr + otr0[j]).pow(2).mean().sqrt(),
         }
         state['test'] = {
             'loss': args.alpha ** -2 * (1 - args.alpha * ote * yte[j]).relu().mean().item(),
             'err': (ote * yte[j] <= 0).double().mean().item(),
             'nd': (args.alpha * ote * yte[j] < 1).long().sum().item(),
             'dfnorm': ote.pow(2).mean().sqrt(),
-            'fnorm': (ote + ote0).pow(2).mean().sqrt(),
+            'fnorm': (ote + ote0[j]).pow(2).mean().sqrt(),
         }
-        print("[i={d[step]:d} t={d[t]:.2e} wall={d[time]:.0f}] [dt={d[dt]:.1e} bs={d[bs]:d} df={d[df]:.1e}] [train L={d[train][loss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}] [test L={d[test][loss]:.2e} err={d[test][err]:.2f}]".format(d=state), flush=True)
+        print("[i={d[step]:d} t={d[t]:.2e} wall={d[time]:.0f}] [dt={d[dt]:.1e} bs={d[bs]:d} df={d[df]:.1e}] [train L={d[train][loss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test L={d[test][loss]:.2e} err={d[test][err]:.2f}]".format(d=state, p=len(j)), flush=True)
 
         return state
 
     f, dynamics = train_regular(f0, xtr, ytr, args.temp, args.tau, args.train_time, args.alpha, args.chunk, op, (args.df_min, args.df_max))
+
     with torch.no_grad():
-        otr0 = torch.cat([f0(xtr[i: i + args.chunk]) for i in range(0, len(xtr), args.chunk)])
-        ote0 = torch.cat([f0(xte[i: i + args.chunk]) for i in range(0, len(xte), args.chunk)])
-        otr = torch.cat([f(xtr[i: i + args.chunk]) - f0(xtr[i: i + args.chunk]) for i in range(0, len(xtr), args.chunk)])
-        ote = torch.cat([f(xte[i: i + args.chunk]) - f0(xte[i: i + args.chunk]) for i in range(0, len(xte), args.chunk)])
+        otr = ev(f, xtr) - otr0
+        ote = ev(f, xte) - ote0
 
     out = {
         'dynamics': dynamics,
@@ -129,7 +131,6 @@ def run_exp(args, f, xtr, ytr, xte, yte):
         f, out = run_regular(args, f, xtr, ytr, xte, yte)
         run['regular'] = out
         time = time_logging.end("regular", time)
-
 
         if args.final_kernel == 1:
             run['final_kernel'], final_kernel = run_kernel(args, f, xtr, ytr, xte, yte)
@@ -174,7 +175,7 @@ def execute(args):
         init_ = normal_orthogonal_
 
     torch.manual_seed(args.init_seed + hash(args.alpha))
-    if args.arch == 'cv':
+    if args.arch == 'cv_relu':
         assert args.init == 'normal'
         f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=lambda x: 2 ** 0.5 * torch.relu(x), fsz=5, beta=1, pad=1, stride_first=True, split_w=True).to(args.device)
     if args.arch == 'wide_resnet':
