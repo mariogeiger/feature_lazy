@@ -36,8 +36,7 @@ class FC(nn.Module):
             W = getattr(self, "W{}".format(i))
             b = getattr(self, "b{}".format(i))
 
-            if isinstance(W, nn.ParameterList):
-                W = torch.cat(list(W))
+            W = torch.cat(list(W))
 
             f = x.size(1)
             x = x @ (W.t() / f ** 0.5) + self.beta * b
@@ -49,18 +48,15 @@ class FC(nn.Module):
 
 
 class CV(nn.Module):
-    def __init__(self, d, h, L1, L2, act, h_base, fsz, beta, pad, stride_first, split_w=False):
+    def __init__(self, d, h, L1, L2, act, h_base, fsz, beta, pad, stride_first):
         super().__init__()
 
         f1 = d
         for i in range(L1):
             f2 = int(h * h_base ** i)
             for j in range(L2):
-                if split_w:
-                    W = nn.ParameterList([nn.Parameter(torch.randn(f1, fsz, fsz)) for _ in range(f2)])
-                    setattr(self, "W{}_{}".format(i, j), W)
-                else:
-                    self.register_parameter("W{}_{}".format(i, j), nn.Parameter(torch.randn(f2, f1, fsz, fsz)))
+                W = nn.ParameterList([nn.Parameter(torch.randn(f1, fsz, fsz)) for _ in range(f2)])
+                setattr(self, "W{}_{}".format(i, j), W)
 
                 self.register_parameter("b{}_{}".format(i, j), nn.Parameter(torch.zeros(f2)))
                 f1 = f2
@@ -82,8 +78,7 @@ class CV(nn.Module):
                 W = getattr(self, "W{}_{}".format(i, j))
                 b = getattr(self, "b{}_{}".format(i, j))
 
-                if isinstance(W, nn.ParameterList):
-                    W = torch.stack(list(W))
+                W = torch.stack(list(W))
 
                 stride = 2 if j == 0 and (i > 0 or self.stride_first) else 1
                 f = W[0].numel()
@@ -100,10 +95,10 @@ class CV(nn.Module):
 
 
 class conv(nn.Module):
-    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, bias=True, gain=1, init_=nn.init.normal_):
+    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, bias=True, gain=1):
         super().__init__()
 
-        w = init_(torch.empty(out_planes, in_planes, kernel_size, kernel_size))
+        w = torch.randn(out_planes, in_planes, kernel_size, kernel_size)
         n = max(1, 256**2 // w[0].numel())
         self.w = nn.ParameterList([nn.Parameter(w[j: j + n]) for j in range(0, len(w), n)])
 
@@ -119,14 +114,14 @@ class conv(nn.Module):
         return F.conv2d(x, f * w, self.b, self.stride, self.padding)
 
 class wide_basic(nn.Module):
-    def __init__(self, in_planes, planes, stride=1, mix_angle=45, init_=nn.init.normal_):
+    def __init__(self, in_planes, planes, stride=1, mix_angle=45):
         super().__init__()
-        self.conv1 = conv(in_planes, planes, kernel_size=3, padding=1, bias=True, gain=2 ** 0.5, init_=init_)
-        self.conv2 = conv(planes, planes, kernel_size=3, stride=stride, padding=1, bias=True, gain=2 ** 0.5, init_=init_)
+        self.conv1 = conv(in_planes, planes, kernel_size=3, padding=1, bias=True, gain=2 ** 0.5)
+        self.conv2 = conv(planes, planes, kernel_size=3, stride=stride, padding=1, bias=True, gain=2 ** 0.5)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != planes:
-            self.shortcut = conv(in_planes, planes, kernel_size=1, stride=stride, bias=True, gain=1, init_=init_)
+            self.shortcut = conv(in_planes, planes, kernel_size=1, stride=stride, bias=True, gain=1)
 
         self.mix_angle = mix_angle
 
@@ -141,7 +136,7 @@ class wide_basic(nn.Module):
         return out
 
 class Wide_ResNet(nn.Module):
-    def __init__(self, d, depth, widen_factor, num_classes, mix_angle=45, init_=nn.init.normal_):
+    def __init__(self, d, depth, widen_factor, num_classes, mix_angle=45):
         super().__init__()
         self.in_planes = 16
 
@@ -150,13 +145,13 @@ class Wide_ResNet(nn.Module):
         k = widen_factor
 
         nStages = [16, 16 * k, 32 * k, 64 * k]
-        block = functools.partial(wide_basic, mix_angle=mix_angle, init_=init_)
+        block = functools.partial(wide_basic, mix_angle=mix_angle)
 
-        self.conv1 = conv(d, nStages[0], kernel_size=3, stride=1, padding=1, bias=True, gain=1, init_=init_)
+        self.conv1 = conv(d, nStages[0], kernel_size=3, stride=1, padding=1, bias=True, gain=1)
         self.layer1 = self._wide_layer(block, nStages[1], n, stride=1)
         self.layer2 = self._wide_layer(block, nStages[2], n, stride=2)
         self.layer3 = self._wide_layer(block, nStages[3], n, stride=2)
-        self.linear = nn.Parameter(init_(torch.empty(num_classes, nStages[3])))
+        self.linear = nn.Parameter(torch.randn(num_classes, nStages[3]))
         self.bias = nn.Parameter(torch.zeros(num_classes))
 
     def _wide_layer(self, block, planes, num_blocks, stride):
@@ -184,26 +179,3 @@ class Wide_ResNet(nn.Module):
             out = out.flatten(0)
 
         return out
-
-
-def normal_orthogonal_(tensor, gain=1):
-    if tensor.ndimension() < 2:
-        raise ValueError("Only tensors with 2 or more dimensions are supported")
-
-    rows = tensor.size(0)
-    cols = tensor[0].numel()
-    flattened = tensor.new_empty(rows, cols).normal_(0, 1)
-
-    for i in range(0, rows, cols):
-        # Compute the qr factorization
-        q, r = torch.qr(flattened[i:i + cols].t())
-        # Make Q uniform according to https://arxiv.org/pdf/math-ph/0609050.pdf
-        q *= torch.diag(r, 0).sign()
-        q.t_()
-
-        with torch.no_grad():
-            tensor[i:i + cols].view_as(q).copy_(q)
-
-    with torch.no_grad():
-        tensor.mul_(cols ** 0.5 * gain)
-    return tensor
