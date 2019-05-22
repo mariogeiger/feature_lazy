@@ -6,7 +6,7 @@ import subprocess
 import torch
 
 import time_logging
-from archi import CV, FC, Wide_ResNet, normal_orthogonal_
+from archi import CV, FC, Wide_ResNet
 from dataset import get_binary_dataset, get_binary_pca_dataset
 from kernels import compute_kernels
 from dynamics import train_kernel, train_regular
@@ -169,29 +169,24 @@ def execute(args):
     xte = xte[:args.pte]
     yte = yte[:args.pte]
 
-    if args.init == 'normal':
-        init_ = torch.nn.init.normal_
-    if args.init == 'orth':
-        init_ = normal_orthogonal_
-
     torch.manual_seed(args.init_seed + hash(args.alpha))
-    if args.arch == 'cv_relu':
-        assert args.init == 'normal'
-        f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=lambda x: 2 ** 0.5 * torch.relu(x), fsz=5, beta=1, pad=1, stride_first=True, split_w=True).to(args.device)
+
     if args.arch == 'wide_resnet':
-        f = Wide_ResNet(xtr.size(1), 28, args.h, 1, args.mix_angle, init_).to(args.device)
-    if args.arch == 'fc_relu':
-        assert args.init == 'normal'
-        assert args.L is not None
-        f = FC(args.d, args.h, args.L, lambda x: 2 ** 0.5 * torch.relu(x), 1).to(args.device)
-    if args.arch == 'fc_tanh':
-        assert args.init == 'normal'
-        assert args.L is not None
-        f = FC(args.d, args.h, args.L, torch.tanh, 1).to(args.device)
-    if args.arch == 'fc_softplus':
-        assert args.init == 'normal'
-        assert args.L is not None
-        f = FC(args.d, args.h, args.L, lambda x: args.spsig * torch.nn.functional.softplus(x, beta=args.spbeta), 1).to(args.device)
+        f = Wide_ResNet(xtr.size(1), 28, args.h, 1, args.mix_angle).to(args.device)
+    else:
+        arch, act = args.arch.split('_')
+        if act == 'relu':
+            act = lambda x: 2 ** 0.5 * torch.relu(x)
+        elif act == 'tanh':
+            act = torch.tanh
+        elif act == 'softplus':
+            act = lambda x: args.spsig * torch.nn.functional.softplus(x, beta=args.spbeta)
+
+        if arch == 'fc':
+            assert args.L is not None
+            f = FC(args.d, args.h, args.L, act, beta=1).to(args.device)
+        elif arch == 'cv':
+            f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, beta=1, pad=1, stride_first=True).to(args.device)
 
     torch.manual_seed(args.batch_seed)
     run = run_exp(args, f, xtr, ytr, xte, yte)
@@ -230,7 +225,6 @@ def main():
     parser.add_argument("--mix_angle", type=float, default=45)
     parser.add_argument("--spbeta", type=float, default=1.0)
     parser.add_argument("--spsig", type=float, default=1.0)
-    parser.add_argument("--init", type=str, default='normal')
 
     parser.add_argument("--init_kernel", type=int, required=True)
     parser.add_argument("--regular", type=int, default=1)
@@ -247,7 +241,6 @@ def main():
     parser.add_argument("--chunk", type=int, required=True)
 
     parser.add_argument("--pickle", type=str, required=True)
-    parser.add_argument("--desc", type=str, required=True)
     args = parser.parse_args()
 
     if args.pte is None:
