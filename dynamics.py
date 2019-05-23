@@ -13,8 +13,6 @@ from time import perf_counter
 
 import torch
 
-import time_logging
-
 
 def loglinspace(rate, step, end=None):
     t = 0
@@ -132,8 +130,6 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
     t = 0
     out_new = None
 
-    tlog = time_logging.start()
-
     for step in itertools.count():
 
         while True:
@@ -144,7 +140,6 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
                 bs = 1
 
             xb, yb, out0b, i = batch(f, x, y, out0, bs, alpha, chunk)
-            tlog = time_logging.end("make batch", tlog)
             if len(xb) == 0:
                 break
 
@@ -153,14 +148,12 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
             else:
                 out = f(xb)
             loss = (1 - alpha * (out - out0b) * yb).relu().sum() / bs / alpha ** 2
-            tlog = time_logging.end("forward", tlog)
 
             if temperature == 0 and loss.item() == 0:
                 break
 
             optimizer.zero_grad()
             loss.backward()
-            tlog = time_logging.end("backward", tlog)
 
             state = copy.deepcopy((f.state_dict(), optimizer.state_dict(), t))
             optimizer.step()
@@ -172,8 +165,6 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
             else:
                 with torch.no_grad():
                     out_new = f(xb)
-
-            tlog = time_logging.end("forward*", tlog)
 
             df = alpha * (out - out_new).abs().max().item()
             if math.isnan(df):
@@ -189,7 +180,6 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
                 f.load_state_dict(state[0])
                 optimizer.load_state_dict(state[1])
                 t = state[2]
-                tlog = time_logging.end("reload state", tlog)
                 out_new = None
                 dt /= 10
                 for param_group in optimizer.param_groups:
@@ -236,7 +226,6 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
                 print("[{d[step]:d} t={d[t]:.2e} wall={d[time]:.0f}] [dt={d[dt]:.1e} bs={d[bs]:d} df={d[df]:.1e}] [train i/P={d[ibs]:.2f} L={d[batch_loss]:.2e}]".format(d=state), flush=True)
 
             dynamics.append(state)
-            tlog = time_logging.end("checkpoint", tlog)
 
         if perf_counter() > time + train_time:
             break

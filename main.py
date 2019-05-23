@@ -5,7 +5,6 @@ import subprocess
 
 import torch
 
-import time_logging
 from archi import CV, FC, Wide_ResNet
 from dataset import get_binary_dataset, get_binary_pca_dataset
 from kernels import compute_kernels
@@ -117,7 +116,6 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
 
 def run_exp(args, f, xtr, ytr, xte, yte):
-    time = time_logging.start()
     run = {
         'args': args,
         'N': sum(p.numel() for p in f.parameters()),
@@ -125,16 +123,13 @@ def run_exp(args, f, xtr, ytr, xte, yte):
 
     if args.init_kernel == 1:
         run['init_kernel'], init_kernel = run_kernel(args, f, xtr, ytr, xte, yte)
-        time = time_logging.end("init_kernel", time)
 
     if args.regular == 1:
         f, out = run_regular(args, f, xtr, ytr, xte, yte)
         run['regular'] = out
-        time = time_logging.end("regular", time)
 
         if args.final_kernel == 1:
             run['final_kernel'], final_kernel = run_kernel(args, f, xtr, ytr, xte, yte)
-            time = time_logging.end("final_kernel", time)
 
     if args.delta_kernel == 1:
         assert args.init_kernel == 1
@@ -148,7 +143,6 @@ def run_exp(args, f, xtr, ytr, xte, yte):
 
 
 def execute(args):
-    time = time_logging.start()
     torch.backends.cudnn.benchmark = True
     if args.dtype == 'float64':
         torch.set_default_dtype(torch.float64)
@@ -193,9 +187,6 @@ def execute(args):
 
     torch.manual_seed(args.batch_seed)
     run = run_exp(args, f, xtr, ytr, xte, yte)
-
-    time = time_logging.end("total", time)
-    run['time_statistics'] = time_logging.text_statistics()
 
     return run
 
