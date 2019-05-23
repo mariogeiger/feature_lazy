@@ -1,4 +1,11 @@
 # pylint: disable=E1101, C
+"""
+This file implements a continuous version of momentum SGD
+
+It contains two implementation of the same dynamics:
+1. `train_regular` for any kind of models
+2. `train_kernel` only for linear models
+"""
 import copy
 import itertools
 import math

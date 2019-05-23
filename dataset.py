@@ -1,4 +1,10 @@
 # pylint: disable=no-member, E1102, C
+"""
+- Load mnist or cifar10
+- perform PCA
+- shuffle the dataset
+- split in train and test set in an equilibrated way (same amount of each classes)
+"""
 import functools
 
 import torch
@@ -87,11 +93,6 @@ def get_normalized_dataset(dataset, seed):
     elif dataset == "cifar10":
         tr = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform)
         te = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform)
-    elif dataset == "santander":
-        xs, ys = torch.load("santander_train.pkl")
-        xs.sub_(xs.mean(0)).div_(xs.std(0))
-        tr = [(x, y) for x, y in zip(xs, ys)]
-        te = []
     else:
         raise ValueError("unknown dataset")
 

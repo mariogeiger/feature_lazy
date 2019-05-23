@@ -1,4 +1,7 @@
 # pylint: disable=no-member, C, not-callable
+"""
+Computes the Gram matrix of a given model
+"""
 
 def compute_kernels(f, xtr, xte):
     from hessian import gradient

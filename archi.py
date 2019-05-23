@@ -1,4 +1,10 @@
 # pylint: disable=E1101, C, arguments-differ
+"""
+Defines three architectures:
+- Fully connecetd `FC`
+- Convolutional `CV`
+- And a resnet `Wide_ResNet`
+"""
 import functools
 import math
 
