@@ -70,10 +70,11 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             otr = ev(f, xtr[j]) - otr0[j]
             ote = ev(f, xte[j]) - ote0[j]
 
-        last_w = "W{}".format(args.L)
-        if hasattr(f, last_w):
-            state['last_norm'] = getattr(f, last_w).norm().item()
-            state['last_dnorm'] = (getattr(f0, last_w) - getattr(f, last_w)).norm().item()
+        if args.arch.split('_')[0] == 'fc':
+            def getw(f, i):
+                return torch.cat(list(getattr(f, "W{}".format(i))))
+            state['wnorm'] = [getw(f, i).norm().item() for i in range(f.L + 1)]
+            state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.L + 1)]
 
         state['train'] = {
             'loss': args.alpha ** -2 * (1 - args.alpha * otr * ytr[j]).relu().mean().item(),
