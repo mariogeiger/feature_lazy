@@ -1,4 +1,8 @@
 *.pkl
+*.ipynb
+*.pgf
+stderr
+info
 
 
 # Byte-compiled / optimized / DLL files
