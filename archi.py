@@ -42,7 +42,8 @@ class FC(nn.Module):
             W = getattr(self, "W{}".format(i))
             b = getattr(self, "b{}".format(i))
 
-            W = torch.cat(list(W))
+            if isinstance(W, nn.ParameterList):
+                W = torch.cat(list(W))
 
             f = x.size(1)
             x = x @ (W.t() / f ** 0.5) + self.beta * b
