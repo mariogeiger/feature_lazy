@@ -1,4 +1,4 @@
-# mf_ntk_article
+# feature and lazy learning
 
 dependancies:
 - pytorch
