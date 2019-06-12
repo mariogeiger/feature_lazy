@@ -124,7 +124,7 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
     optimizer = ContinuousMomentum(f.parameters(), dt=dt, tau=tau)
 
     dynamics = []
-    checkpoint_generator = loglinspace(0.05, 100)
+    checkpoint_generator = loglinspace(0.01, 100)
     checkpoint = next(checkpoint_generator)
     time = perf_counter()
     t = 0
@@ -248,7 +248,7 @@ def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, changes_bounds
     step_change_dt = 0
 
     dynamics = []
-    checkpoint_generator = loglinspace(0.05, 1000)
+    checkpoint_generator = loglinspace(0.01, 1000)
     checkpoint = next(checkpoint_generator)
     time = perf_counter()
     t = 0
