@@ -178,7 +178,9 @@ def execute(args):
 
     if arch == 'fc':
         assert args.L is not None
-        f = FC(args.d, args.h, args.L, act, beta=1).to(args.device)
+        xtr = xtr.flatten(1)
+        xte = xte.flatten(1)
+        f = FC(xtr.size(1), args.h, args.L, act, beta=1).to(args.device)
     elif arch == 'cv':
         f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, beta=1, pad=1, stride_first=True).to(args.device)
     elif arch == 'resnet':
