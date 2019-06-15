@@ -108,14 +108,14 @@ def batch(f, x, y, out0, size, alpha, chunk):
     return xb, yb, out0b, i
 
 
-def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None, changes_bounds=(1e-4, 1e-2)):
+def train_regular(f0, x, y, temperature, tau, train_time, alpha, min_bs, max_bs, op=None, changes_bounds=(1e-4, 1e-2)):
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
-        out0 = torch.cat([f0(x[i: i + chunk]) for i in range(0, len(x), chunk)])
+        out0 = torch.cat([f0(x[i: i + max_bs]) for i in range(0, len(x), max_bs)])
 
     if temperature > 0:
-        max_dt = chunk * temperature / (1 - (chunk - 1) / (len(x) - 1)) if chunk < len(x) else math.inf
+        max_dt = max_bs * temperature / (1 - (max_bs - 1) / (len(x) - 1)) if max_bs < len(x) else math.inf
         dt = temperature
     else:
         max_dt = math.inf
@@ -134,12 +134,11 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
 
         while True:
             bs = len(x) / (temperature / dt * (len(x) - 1) + 1)
-            bs = int(round(bs))
+            bs = max(min_bs, int(round(bs)))
+            if temperature > 0:
+                dt = bs * temperature / (1 - (bs - 1) / (len(x) - 1))
 
-            if bs == 0:
-                bs = 1
-
-            xb, yb, out0b, i = batch(f, x, y, out0, bs, alpha, chunk)
+            xb, yb, out0b, i = batch(f, x, y, out0, bs, alpha, max_bs)
             if len(xb) == 0:
                 break
 
@@ -236,7 +235,7 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, chunk, op=None,
     return f, dynamics
 
 
-def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, changes_bounds=(1e-4, 1e-2)):
+def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, min_bs, max_bs, changes_bounds=(1e-4, 1e-2)):
     # (1 - a f y).relu / a^2  =>  -y theta(1 - a f y) / a
     otr = ktrtr.new_zeros(len(ytr))
     velo = otr.clone()
@@ -257,10 +256,9 @@ def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, changes_bounds
 
         while True:
             bs = len(otr) / (temperature / dt * (len(otr) - 1) + 1)
-            bs = int(round(bs))
-
-            if bs == 0:
-                bs = 1
+            bs = min(max(min_bs, int(round(bs))), max_bs)
+            if temperature > 0:
+                dt = bs * temperature / (1 - (bs - 1) / (len(x) - 1))
 
             lprim = -ytr * (1 - alpha * otr * ytr >= 0).type(otr.dtype) / alpha
             B = lprim.nonzero().flatten()
