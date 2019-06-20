@@ -3,6 +3,7 @@
 *.pgf
 stderr
 info
+*.png
 
 
 # Byte-compiled / optimized / DLL files
