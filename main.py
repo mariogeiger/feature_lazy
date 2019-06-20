@@ -11,9 +11,7 @@ from kernels import compute_kernels
 from dynamics import train_kernel, train_regular
 
 
-def run_kernel(args, f, xtr, ytr, xte, yte):
-    ktrtr, ktetr, ktete = compute_kernels(f, xtr, xte[:len(xtr)])
-
+def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
     otr, dynamics = train_kernel(ktrtr, ytr, args.temp, args.tau, args.train_time, args.alpha, args.min_bs, args.max_bs, (args.df_min, args.df_max))
     c = torch.gels(otr.view(-1, 1), ktrtr)[0].flatten()
 
@@ -52,7 +50,7 @@ def run_kernel(args, f, xtr, ytr, xte, yte):
         },
     }
 
-    return out, (ktrtr.cpu(), ktete.cpu()) if args.delta_kernel == 1 else None
+    return out
 
 
 def run_regular(args, f0, xtr, ytr, xte, yte):
@@ -116,29 +114,39 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     return f, out
 
 
-def run_exp(args, f, xtr, ytr, xte, yte):
+def run_exp(args, f0, xtr, ytr, xte, yte):
     run = {
         'args': args,
-        'N': sum(p.numel() for p in f.parameters()),
+        'N': sum(p.numel() for p in f0.parameters()),
     }
 
+    if args.delta_kernel == 1 or args.init_kernel == 1:
+        init_kernel = compute_kernels(f0, xtr, xte[:len(xtr)])
+
     if args.init_kernel == 1:
-        run['init_kernel'], init_kernel = run_kernel(args, f, xtr, ytr, xte, yte)
-
-    if args.regular == 1:
-        f, out = run_regular(args, f, xtr, ytr, xte, yte)
-        run['regular'] = out
-
-        if args.final_kernel == 1:
-            run['final_kernel'], final_kernel = run_kernel(args, f, xtr, ytr, xte, yte)
+        run['init_kernel'] = run_kernel(args, *init_kernel, f0, xtr, ytr, xte, yte)
 
     if args.delta_kernel == 1:
-        assert args.init_kernel == 1
-        assert args.final_kernel == 1
-        run['delta_kernel'] = {
-            'train': (init_kernel[0] - final_kernel[0]).norm().item(),
-            'test': (init_kernel[1] - final_kernel[1]).norm().item(),
-        }
+        init_kernel = (init_kernel[0].cpu(), init_kernel[2].cpu())
+    else:
+        del init_kernel
+
+    if args.regular == 1:
+        f, out = run_regular(args, f0, xtr, ytr, xte, yte)
+        run['regular'] = out
+
+        if args.delta_kernel == 1 or args.final_kernel == 1:
+            final_kernel = compute_kernels(f, xtr, xte[:len(xtr)])
+
+        if args.final_kernel == 1:
+            run['final_kernel'] = run_kernel(args, *final_kernel, f, xtr, ytr, xte, yte)
+
+        if args.delta_kernel == 1:
+            final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
+            run['delta_kernel'] = {
+                'train': (init_kernel[0] - final_kernel[0]).norm().item(),
+                'test': (init_kernel[1] - final_kernel[1]).norm().item(),
+            }
 
     return run
 
