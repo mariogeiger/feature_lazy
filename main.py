@@ -128,7 +128,7 @@ def run_exp(args, f0, xtr, ytr, xte, yte):
 
     if args.delta_kernel == 1:
         init_kernel = (init_kernel[0].cpu(), init_kernel[2].cpu())
-    else:
+    elif args.init_kernel == 1:
         del init_kernel
 
     if args.regular == 1:
