@@ -135,8 +135,8 @@ def train_regular(f0, x, y, temperature, tau, train_time, alpha, min_bs, max_bs,
         while True:
             bs = len(x) / (temperature / dt * (len(x) - 1) + 1)
             bs = max(min_bs, int(round(bs)))
-            if temperature > 0:
-                dt = bs * temperature / (1 - (bs - 1) / (len(x) - 1))
+            #if temperature > 0:
+            #    dt = bs * temperature / (1 - (bs - 1) / (len(x) - 1))
 
             xb, yb, out0b, i = batch(f, x, y, out0, bs, alpha, max_bs)
             if len(xb) == 0:
@@ -257,8 +257,8 @@ def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, min_bs, max_bs
         while True:
             bs = len(otr) / (temperature / dt * (len(otr) - 1) + 1)
             bs = min(max(min_bs, int(round(bs))), max_bs)
-            if temperature > 0:
-                dt = bs * temperature / (1 - (bs - 1) / (len(x) - 1))
+            #if temperature > 0:
+            #    dt = bs * temperature / (1 - (bs - 1) / (len(x) - 1))
 
             lprim = -ytr * (1 - alpha * otr * ytr >= 0).type(otr.dtype) / alpha
             B = lprim.nonzero().flatten()
