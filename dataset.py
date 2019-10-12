@@ -10,7 +10,7 @@ import functools
 import torch
 
 
-def pca(x, d):
+def pca(x, d, whitening):
     '''
     :param x: [P, ...]
     :return: [P, d]
@@ -24,18 +24,22 @@ def pca(x, d):
     val, idx = val.sort(descending=True)
     vec = vec[:, idx]
 
-    u = (z - mu) @ vec[:, :d] * val[:d].rsqrt()
+    u = (z - mu) @ vec[:, :d]
+    if whitening:
+        u.mul_(val[:d].rsqrt())
+    else:
+        u.mul_(val[:d].mean().rsqrt())
 
     return u
 
 
-def get_binary_pca_dataset(dataset, p, d, seed=None, device=None):
+def get_binary_pca_dataset(dataset, p, d, whitening, seed=None, device=None):
     if seed is None:
         seed = torch.randint(2 ** 32, (), dtype=torch.long).item()
 
     x, y = get_normalized_dataset(dataset, seed)
 
-    x = pca(x, d).to(device)
+    x = pca(x, d, whitening).to(device)
     y = (2 * (y % 2) - 1).type(x.dtype).to(device)
 
     xtr = x[:p]
@@ -90,6 +94,15 @@ def get_normalized_dataset(dataset, seed):
     if dataset == "mnist":
         tr = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=False, transform=transform)
+    elif dataset == "kmnist":
+        tr = torchvision.datasets.KMNIST('~/.torchvision/datasets/KMNIST', train=True, download=True, transform=transform)
+        te = torchvision.datasets.KMNIST('~/.torchvision/datasets/KMNIST', train=False, transform=transform)
+    elif dataset == "emnist-letters":
+        tr = torchvision.datasets.EMNIST('~/.torchvision/datasets/EMNIST', train=True, download=True, transform=transform, split='letters')
+        te = torchvision.datasets.EMNIST('~/.torchvision/datasets/EMNIST', train=False, transform=transform, split='letters')
+    elif dataset == "fashion":
+        tr = torchvision.datasets.FashionMNIST('~/.torchvision/datasets/FashionMNIST', train=True, download=True, transform=transform)
+        te = torchvision.datasets.FashionMNIST('~/.torchvision/datasets/FashionMNIST', train=False, transform=transform)
     elif dataset == "cifar10":
         tr = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform)
         te = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform)

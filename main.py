@@ -1,18 +1,65 @@
-# pylint: disable=C, R, E1101, bare-except
+# pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable
 import argparse
+import math
 import os
 import subprocess
+from functools import partial
+from time import perf_counter
 
 import torch
 
 from archi import CV, FC, Wide_ResNet
 from dataset import get_binary_dataset, get_binary_pca_dataset
-from kernels import compute_kernels
 from dynamics import train_kernel, train_regular
+from kernels import compute_kernels
+
+
+def loss_func(args, fy):
+    if args.loss == 'softhinge':
+        sp = partial(torch.nn.functional.softplus, beta=args.lossbeta)
+        return sp(1 - args.alpha * fy) / args.alpha
+    if args.loss == 'qhinge':
+        return 0.5 * (1 - args.alpha * fy).relu().pow(2) / args.alpha
+
+
+def loss_func_prime(args, fy):
+    if args.loss == 'softhinge':
+        return -torch.sigmoid(args.lossbeta * (1 - args.alpha * fy)).mul(args.lossbeta)
+    if args.loss == 'qhinge':
+        return -(1 - args.alpha * fy).relu()
+
+
+class SplitEval(torch.nn.Module):
+    def __init__(self, f, size):
+        super().__init__()
+        self.f = f
+        self.size = size
+
+    def forward(self, x):
+        return torch.cat([self.f(x[i: i + self.size]) for i in range(0, len(x), self.size)])
 
 
 def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
-    otr, dynamics = train_kernel(ktrtr, ytr, args.temp, args.tau, args.train_time, args.alpha, args.min_bs, args.max_bs, (args.df_min, args.df_max))
+    dynamics = []
+
+    tau = args.tau_over_h * args.h
+    if args.tau_alpha_crit is not None:
+        tau *= min(1, args.tau_alpha_crit / args.alpha)
+
+    for otr, _velo, _grad, state, _converged in train_kernel(ktrtr, ytr, tau, args.train_time, args.alpha, partial(loss_func_prime, args), args.max_dgrad, args.max_dout):
+        state['train'] = {
+            'loss': loss_func(args, otr * ytr).mean().item(),
+            'aloss': args.alpha * loss_func(args, otr * ytr).mean().item(),
+            'err': (otr * ytr <= 0).double().mean().item(),
+            'nd': (args.alpha * otr * ytr < 1).long().sum().item(),
+            'dfnorm': otr.pow(2).mean().sqrt(),
+            'outputs': otr if args.save_outputs else None,
+            'labels': ytr if args.save_outputs else None,
+        }
+
+        print("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}]".format(d=state), flush=True)
+        dynamics.append(state)
+
     c = torch.gels(otr.view(-1, 1), ktrtr)[0].flatten()
 
     if len(xte) > len(xtr):
@@ -55,63 +102,76 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
 
 def run_regular(args, f0, xtr, ytr, xte, yte):
 
-    def ev(f, x):
-        return torch.cat([f(x[i: i + args.max_bs]) for i in range(0, len(x), args.max_bs)])
-
     with torch.no_grad():
-        otr0 = ev(f0, xtr)
-        ote0 = ev(f0, xte)
+        otr0 = f0(xtr)
+        ote0 = f0(xte)
 
-    def op(f, state):
-        j = torch.randperm(min(len(xte), len(xtr)))[:10 * args.max_bs]
+    j = torch.randperm(min(len(xte), len(xtr)))[:10 * args.chunk]
+    ytrj = ytr[j]
+    ytej = yte[j]
+
+    t = perf_counter()
+
+    tau = args.tau_over_h * args.h
+    if args.tau_alpha_crit is not None:
+        tau *= min(1, args.tau_alpha_crit / args.alpha)
+
+    dynamics = []
+    for f, state, done in train_regular(f0, xtr, ytr, tau, args.train_time, args.alpha, partial(loss_func, args), args.max_dgrad, args.max_dout):
         with torch.no_grad():
-            otr = ev(f, xtr[j]) - otr0[j]
-            ote = ev(f, xte[j]) - ote0[j]
+            otr = f(xtr[j]) - otr0[j]
+            ote = f(xte[j]) - ote0[j]
 
         if args.arch.split('_')[0] == 'fc':
             def getw(f, i):
-                return torch.cat(list(getattr(f, "W{}".format(i))))
-            state['wnorm'] = [getw(f, i).norm().item() for i in range(f.L + 1)]
-            state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.L + 1)]
+                return torch.cat(list(getattr(f.f, "W{}".format(i))))
+            state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
+            state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
 
         state['train'] = {
-            'loss': args.alpha ** -2 * (1 - args.alpha * otr * ytr[j]).relu().mean().item(),
+            'loss': loss_func(args, otr * ytrj).mean().item(),
+            'aloss': args.alpha * loss_func(args, otr * ytrj).mean().item(),
             'err': (otr * ytr[j] <= 0).double().mean().item(),
             'nd': (args.alpha * otr * ytr[j] < 1).long().sum().item(),
             'dfnorm': otr.pow(2).mean().sqrt(),
             'fnorm': (otr + otr0[j]).pow(2).mean().sqrt(),
+            'outputs': otr if args.save_outputs else None,
+            'labels': ytrj if args.save_outputs else None,
         }
         state['test'] = {
-            'loss': args.alpha ** -2 * (1 - args.alpha * ote * yte[j]).relu().mean().item(),
+            'loss': loss_func(args, ote * ytej).mean().item(),
+            'aloss': args.alpha * loss_func(args, ote * ytej).mean().item(),
             'err': (ote * yte[j] <= 0).double().mean().item(),
             'nd': (args.alpha * ote * yte[j] < 1).long().sum().item(),
             'dfnorm': ote.pow(2).mean().sqrt(),
             'fnorm': (ote + ote0[j]).pow(2).mean().sqrt(),
+            'outputs': ote if args.save_outputs else None,
+            'labels': ytej if args.save_outputs else None,
         }
-        print("[i={d[step]:d} t={d[t]:.2e} wall={d[time]:.0f}] [dt={d[dt]:.1e} bs={d[bs]:d} df={d[df]:.1e}] [train L={d[train][loss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test L={d[test][loss]:.2e} err={d[test][err]:.2f}]".format(d=state, p=len(j)), flush=True)
+        print("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]".format(d=state, p=len(j)), flush=True)
+        dynamics.append(state)
 
-        return state
+        if done or perf_counter() - t > 120:
+            t = perf_counter()
 
-    f, dynamics = train_regular(f0, xtr, ytr, args.temp, args.tau, args.train_time, args.alpha, args.min_bs, args.max_bs, op, (args.df_min, args.df_max))
+            with torch.no_grad():
+                otr = f(xtr) - otr0
+                ote = f(xte) - ote0
 
-    with torch.no_grad():
-        otr = ev(f, xtr) - otr0
-        ote = ev(f, xte) - ote0
-
-    out = {
-        'dynamics': dynamics,
-        'train': {
-            'f0': otr0,
-            'outputs': otr,
-            'labels': ytr,
-        },
-        'test': {
-            'f0': ote0,
-            'outputs': ote,
-            'labels': yte,
-        }
-    }
-    return f, out
+            out = {
+                'dynamics': dynamics,
+                'train': {
+                    'f0': otr0,
+                    'outputs': otr,
+                    'labels': ytr,
+                },
+                'test': {
+                    'f0': ote0,
+                    'outputs': ote,
+                    'labels': yte,
+                }
+            }
+            yield f, out
 
 
 def run_exp(args, f0, xtr, ytr, xte, yte):
@@ -132,8 +192,9 @@ def run_exp(args, f0, xtr, ytr, xte, yte):
         del init_kernel
 
     if args.regular == 1:
-        f, out = run_regular(args, f0, xtr, ytr, xte, yte)
-        run['regular'] = out
+        for f, out in run_regular(args, f0, xtr, ytr, xte, yte):
+            run['regular'] = out
+            yield run
 
         if args.delta_kernel == 1 or args.final_kernel == 1:
             final_kernel = compute_kernels(f, xtr, xte[:len(xtr)])
@@ -148,7 +209,7 @@ def run_exp(args, f0, xtr, ytr, xte, yte):
                 'test': (init_kernel[1] - final_kernel[1]).norm().item(),
             }
 
-    return run
+    yield run
 
 
 def execute(args):
@@ -158,10 +219,10 @@ def execute(args):
     if args.dtype == 'float32':
         torch.set_default_dtype(torch.float32)
 
-    if args.d is None:
+    if args.d is None or args.d == 0:
         (xtr, ytr), (xte, yte) = get_binary_dataset(args.dataset, args.ptr, args.data_seed, args.device)
     else:
-        (xtr, ytr), (xte, yte) = get_binary_pca_dataset(args.dataset, args.ptr, args.d, args.data_seed, args.device)
+        (xtr, ytr), (xte, yte) = get_binary_pca_dataset(args.dataset, args.ptr, args.d, args.whitening, args.data_seed, args.device)
 
     xtr = xtr.type(torch.get_default_dtype())
     xte = xte.type(torch.get_default_dtype())
@@ -180,7 +241,8 @@ def execute(args):
     elif act == 'tanh':
         act = torch.tanh
     elif act == 'softplus':
-        act = lambda x: args.spsig * torch.nn.functional.softplus(x, beta=args.spbeta)
+        factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
+        act = lambda x: torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
     else:
         raise ValueError('act not specified')
 
@@ -188,18 +250,21 @@ def execute(args):
         assert args.L is not None
         xtr = xtr.flatten(1)
         xte = xte.flatten(1)
-        f = FC(xtr.size(1), args.h, args.L, act, beta=1).to(args.device)
+        f = FC(xtr.size(1), args.h, args.L, act, args.bias > 0).to(args.device)
     elif arch == 'cv':
-        f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, beta=1, pad=1, stride_first=True).to(args.device)
+        assert args.bias == 0
+        f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, pad=1, stride_first=True).to(args.device)
     elif arch == 'resnet':
+        assert args.bias == 0
         f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
     else:
         raise ValueError('arch not specified')
 
-    torch.manual_seed(args.batch_seed)
-    run = run_exp(args, f, xtr, ytr, xte, yte)
+    f = SplitEval(f, args.chunk)
 
-    return run
+    torch.manual_seed(args.batch_seed)
+    for run in run_exp(args, f, xtr, ytr, xte, yte):
+        yield run
 
 
 def main():
@@ -216,35 +281,38 @@ def main():
     parser.add_argument("--data_seed", type=int, required=True)
     parser.add_argument("--batch_seed", type=int, required=True)
 
-    parser.add_argument("--df_min", type=float, default=1e-4)
-    parser.add_argument("--df_max", type=float, default=1e-2)
-
-    parser.add_argument("--dataset", type=str)
+    parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
+    parser.add_argument("--whitening", type=int, default=1)
 
     parser.add_argument("--arch", type=str, required=True)
+    parser.add_argument("--bias", type=int, default=0)
     parser.add_argument("--L", type=int)
     parser.add_argument("--h", type=int, required=True)
     parser.add_argument("--mix_angle", type=float, default=45)
-    parser.add_argument("--spbeta", type=float, default=1.0)
-    parser.add_argument("--spsig", type=float, default=1.0)
+    parser.add_argument("--spbeta", type=float, default=5.0)
 
     parser.add_argument("--init_kernel", type=int, required=True)
     parser.add_argument("--regular", type=int, default=1)
     parser.add_argument("--final_kernel", type=int, required=True)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
+    parser.add_argument("--save_outputs", type=int, default=0)
 
-    parser.add_argument("--alpha", type=float)
-    parser.add_argument("--sqhalpha", type=float)
+    parser.add_argument("--alpha", type=float, required=True)
 
-    parser.add_argument("--temp", type=float)
-    parser.add_argument("--tau", type=float, default=0.0)
+    parser.add_argument("--tau_over_h", type=float, default=0.0)
+    parser.add_argument("--tau_alpha_crit", type=float)
+
     parser.add_argument("--train_time", type=float, required=True)
-    parser.add_argument("--min_bs", type=int, default=1)
-    parser.add_argument("--max_bs", type=int, required=True)
+    parser.add_argument("--chunk", type=int)
+    parser.add_argument("--max_dgrad", type=float, default=3e-5)
+    parser.add_argument("--max_dout", type=float, default=1e-1)
+
+    parser.add_argument("--loss", type=str, default="softhinge")
+    parser.add_argument("--lossbeta", type=float, default=20.0)
 
     parser.add_argument("--pickle", type=str, required=True)
     args = parser.parse_args()
@@ -252,22 +320,16 @@ def main():
     if args.pte is None:
         args.pte = args.ptr
 
-    if args.alpha is None and args.sqhalpha is None:
-        args.alpha = 1
-
-    if args.sqhalpha is None:
-        args.sqhalpha = args.h ** 0.5 * args.alpha
-
-    if args.alpha is None:
-        args.alpha = args.sqhalpha / args.h ** 0.5
+    if args.chunk is None:
+        args.chunk = args.ptr
 
     torch.save(args, args.pickle)
     try:
-        res = execute(args)
-        res['git'] = git
-        with open(args.pickle, 'wb') as f:
-            torch.save(args, f)
-            torch.save(res, f)
+        for res in execute(args):
+            res['git'] = git
+            with open(args.pickle, 'wb') as f:
+                torch.save(args, f)
+                torch.save(res, f)
     except:
         os.remove(args.pickle)
         raise

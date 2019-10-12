@@ -14,67 +14,70 @@ import torch.nn.functional as F
 
 
 class FC(nn.Module):
-    def __init__(self, d, h, L, act, beta):
+    def __init__(self, d, h, L, act, bias=False):
         super().__init__()
 
-        f = d
+        hh = d
         for i in range(L):
-            W = torch.randn(h, f)
+            W = torch.randn(h, hh)
 
             # next two line are here to avoid memory issue when computing the kernel
-            n = max(1, 256**2 // f)
+            n = max(1, 128 * 256 // hh)
             W = nn.ParameterList([nn.Parameter(W[j: j+n]) for j in range(0, len(W), n)])
 
             setattr(self, "W{}".format(i), W)
+            if bias:
+                self.register_parameter("B{}".format(i), nn.Parameter(torch.zeros(h)))
+            hh = h
 
-            self.register_parameter("b{}".format(i), nn.Parameter(torch.zeros(h)))
-            f = h
-
-        self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(1, f)))
-        self.register_parameter("b{}".format(L), nn.Parameter(torch.zeros(1)))
+        self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(1, hh)))
+        if bias:
+            self.register_parameter("B{}".format(L), nn.Parameter(torch.zeros(1)))
 
         self.L = L
         self.act = act
-        self.beta = beta
+        self.bias = bias
 
     def forward(self, x):
         for i in range(self.L + 1):
             W = getattr(self, "W{}".format(i))
-            b = getattr(self, "b{}".format(i))
 
             if isinstance(W, nn.ParameterList):
                 W = torch.cat(list(W))
 
-            f = x.size(1)
-            x = x @ (W.t() / f ** 0.5) + self.beta * b
+            if self.bias:
+                B = getattr(self, "B{}".format(i))
+            else:
+                B = 0
+
+            h = x.size(1)
 
             if i < self.L:
-                x = self.act(x)
+                x = x @ (W.t() / h ** 0.5)
+                x = self.act(x + B)
+            else:
+                x = x @ (W.t() / h) + B
 
         return x.view(-1)
 
 
 class CV(nn.Module):
-    def __init__(self, d, h, L1, L2, act, h_base, fsz, beta, pad, stride_first):
+    def __init__(self, d, h, L1, L2, act, h_base, fsz, pad, stride_first):
         super().__init__()
 
-        f1 = d
+        h1 = d
         for i in range(L1):
-            f2 = int(h * h_base ** i)
+            h2 = int(h * h_base ** i)
             for j in range(L2):
-                W = nn.ParameterList([nn.Parameter(torch.randn(f1, fsz, fsz)) for _ in range(f2)])
+                W = nn.ParameterList([nn.Parameter(torch.randn(h1, fsz, fsz)) for _ in range(h2)])
                 setattr(self, "W{}_{}".format(i, j), W)
+                h1 = h2
 
-                self.register_parameter("b{}_{}".format(i, j), nn.Parameter(torch.zeros(f2)))
-                f1 = f2
-
-        self.register_parameter("W", nn.Parameter(torch.randn(f1)))
-        self.register_parameter("b", nn.Parameter(torch.zeros(())))
+        self.register_parameter("W", nn.Parameter(torch.randn(h1)))
 
         self.L1 = L1
         self.L2 = L2
         self.act = act
-        self.beta = beta
         self.pad = pad
         self.stride_first = stride_first
 
@@ -83,21 +86,18 @@ class CV(nn.Module):
             assert x.size(2) >= 5 and x.size(3) >= 5
             for j in range(self.L2):
                 W = getattr(self, "W{}_{}".format(i, j))
-                b = getattr(self, "b{}_{}".format(i, j))
-
                 W = torch.stack(list(W))
 
                 stride = 2 if j == 0 and (i > 0 or self.stride_first) else 1
-                f = W[0].numel()
-                x = nn.functional.conv2d(x, W / f ** 0.5, self.beta * b, stride=stride, padding=self.pad)
+                h = W[0].numel()
+                x = nn.functional.conv2d(x, W / h ** 0.5, None, stride=stride, padding=self.pad)
                 x = self.act(x)
 
         x = x.flatten(2).mean(2)
 
         W = getattr(self, "W")
-        b = getattr(self, "b")
-        f = len(W)
-        x = x @ (W / f ** 0.5) + self.beta * b
+        h = len(W)
+        x = x @ (W / h)
         return x.view(-1)
 
 
@@ -116,8 +116,8 @@ class conv(nn.Module):
 
     def forward(self, x):
         w = torch.cat(list(self.w))
-        f = 1 / w[0].numel() ** 0.5
-        return F.conv2d(x, f * w, self.b, self.stride, self.padding)
+        h = w[0].numel()
+        return F.conv2d(x, w / h ** 0.5, self.b, self.stride, self.padding)
 
 class wide_basic(nn.Module):
     def __init__(self, in_planes, planes, act, stride=1, mix_angle=45):
@@ -143,18 +143,18 @@ class wide_basic(nn.Module):
         return out
 
 class Wide_ResNet(nn.Module):
-    def __init__(self, d, depth, widen_factor, act, num_classes, mix_angle=45):
+    def __init__(self, d, depth, h, act, num_classes, mix_angle=45):
         super().__init__()
-        self.in_planes = 16
 
         assert (depth % 6 == 4), 'Wide-resnet depth should be 6n+4'
         n = (depth - 4) // 6
-        k = widen_factor
 
-        nStages = [16, 16 * k, 32 * k, 64 * k]
+        nStages = [16, 16 * h, 32 * h, 64 * h]
         block = functools.partial(wide_basic, act=act, mix_angle=mix_angle)
 
         self.conv1 = conv(d, nStages[0], kernel_size=3, stride=1, padding=1, bias=True)
+        self.in_planes = nStages[0]
+
         self.layer1 = self._wide_layer(block, nStages[1], n, stride=1)
         self.layer2 = self._wide_layer(block, nStages[2], n, stride=2)
         self.layer3 = self._wide_layer(block, nStages[3], n, stride=2)
@@ -180,8 +180,8 @@ class Wide_ResNet(nn.Module):
         out = self.act(out)
         out = out.flatten(2).mean(2)
 
-        f = 1 / self.linear.size(1) ** 0.5
-        out = F.linear(out, f * self.linear, self.bias)
+        h = self.linear.size(1)
+        out = F.linear(out, self.linear / h, self.bias)
 
         if out.size(1) == 1:
             out = out.flatten(0)

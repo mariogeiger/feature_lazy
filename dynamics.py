@@ -1,6 +1,9 @@
 # pylint: disable=E1101, C
 """
 This file implements a continuous version of momentum SGD
+Dynamics that compares the angle of the gradient between steps and keep it small
+
+- stop when margins are reached
 
 It contains two implementation of the same dynamics:
 1. `train_regular` for any kind of models
@@ -12,6 +15,8 @@ import math
 from time import perf_counter
 
 import torch
+
+from hessian import gradient
 
 
 def loglinspace(rate, step, end=None):
@@ -82,196 +87,134 @@ class ContinuousMomentum(torch.optim.Optimizer):
         return loss
 
 
-def batch(f, x, y, out0, size, alpha, chunk):
-    if size >= len(x):
-        return x, y, out0, 0
+def make_step(f, optimizer, dt, grad):
+    i = 0
+    for p in f.parameters():
+        n = p.numel()
+        p.grad = grad[i: i + n].view_as(p)
+        i += n
 
-    with torch.no_grad():
-        perm = torch.randperm(len(x), device=x.device)
-        xbs = []
-        out0bs = []
-        ybs = []
-        for i in range(0, len(perm), chunk):
-            im = perm[i: i + chunk]
+    for param_group in optimizer.param_groups:
+        param_group['dt'] = dt
 
-            idx = alpha * (f(x[im]) - out0[im]) * y[im] < 1
+    optimizer.step()
 
-            xbs.append(x[im][idx])
-            out0bs.append(out0[im][idx])
-            ybs.append(y[im][idx])
-            if sum(len(x) for x in xbs) >= size:
-                break
-        xb = torch.cat(xbs)[:size]
-        out0b = torch.cat(out0bs)[:size]
-        yb = torch.cat(ybs)[:size]
-
-    return xb, yb, out0b, i
+    for p in f.parameters():
+        p.grad = None
 
 
-def train_regular(f0, x, y, temperature, tau, train_time, alpha, min_bs, max_bs, op=None, changes_bounds=(1e-4, 1e-2)):
+def train_regular(f0, x, y, tau, max_walltime, alpha, loss, max_dgrad=math.inf, max_dout=math.inf):
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
-        out0 = torch.cat([f0(x[i: i + max_bs]) for i in range(0, len(x), max_bs)])
+        out0 = f0(x)
 
-    if temperature > 0:
-        max_dt = max_bs * temperature / (1 - (max_bs - 1) / (len(x) - 1)) if max_bs < len(x) else math.inf
-        dt = temperature
-    else:
-        max_dt = math.inf
-        dt = 1e-50
+    dt = 1
     step_change_dt = 0
     optimizer = ContinuousMomentum(f.parameters(), dt=dt, tau=tau)
 
-    dynamics = []
     checkpoint_generator = loglinspace(0.01, 100)
     checkpoint = next(checkpoint_generator)
-    time = perf_counter()
+    wall = perf_counter()
     t = 0
-    out_new = None
+    converged = False
+
+    out = f(x)
+    grad = gradient(loss((out - out0) * y).mean(), f.parameters())
 
     for step in itertools.count():
 
+        state = copy.deepcopy((f.state_dict(), optimizer.state_dict(), t))
+
         while True:
-            bs = len(x) / (temperature / dt * (len(x) - 1) + 1)
-            bs = max(min_bs, int(round(bs)))
-            #if temperature > 0:
-            #    dt = bs * temperature / (1 - (bs - 1) / (len(x) - 1))
-
-            xb, yb, out0b, i = batch(f, x, y, out0, bs, alpha, max_bs)
-            if len(xb) == 0:
-                break
-
-            if temperature == 0 and out_new is not None:
-                out = out_new
-            else:
-                out = f(xb)
-            loss = (1 - alpha * (out - out0b) * yb).relu().sum() / bs / alpha ** 2
-
-            if temperature == 0 and loss.item() == 0:
-                break
-
-            optimizer.zero_grad()
-            loss.backward()
-
-            state = copy.deepcopy((f.state_dict(), optimizer.state_dict(), t))
-            optimizer.step()
+            make_step(f, optimizer, dt, grad)
             t += dt
             current_dt = dt
 
-            if temperature == 0:
-                out_new = f(xb)
+            new_out = f(x)
+            new_grad = gradient(loss((new_out - out0) * y).mean(), f.parameters())
+
+            dout = (out - new_out).mul(alpha).abs().max().item()
+            if grad.norm() == 0 or new_grad.norm() == 0:
+                dgrad = 0
             else:
-                with torch.no_grad():
-                    out_new = f(xb)
+                dgrad = (grad - new_grad).norm().pow(2).div(grad.norm() * new_grad.norm()).item()
 
-            df = alpha * (out - out_new).abs().max().item()
-            if math.isnan(df):
+            if dgrad < max_dgrad and dout < max_dout:
+                if dgrad < 0.5 * max_dgrad and dout < 0.5 * max_dout:
+                    dt *= 1.1
                 break
 
-            if changes_bounds[0] < df < changes_bounds[1]:
-                break
+            dt /= 10
 
-            if df < changes_bounds[1] and dt >= max_dt:
-                break
-
-            if df > changes_bounds[1]:
-                f.load_state_dict(state[0])
-                optimizer.load_state_dict(state[1])
-                t = state[2]
-                out_new = None
-                dt /= 10
-                for param_group in optimizer.param_groups:
-                    param_group['dt'] = dt
-                print("[{} +{}] max df={:.1e}".format(step, step - step_change_dt, df), flush=True)
-
+            print("[{} +{}] [dt={:.1e} dgrad={:.1e} dout={:.1e}]".format(step, step - step_change_dt, dt, dgrad, dout), flush=True)
             step_change_dt = step
+            f.load_state_dict(state[0])
+            optimizer.load_state_dict(state[1])
+            t = state[2]
 
-            if df < changes_bounds[0]:
-                if df == 0:
-                    dt = min(10 * dt, max_dt)
-                else:
-                    dt = min(1.1 * dt, max_dt)
-                for param_group in optimizer.param_groups:
-                    param_group['dt'] = dt
-                break
+        out = new_out
+        grad = new_grad
 
-
-        if len(xb) == 0:
-            break
-        if temperature == 0 and loss.item() == 0:
-            break
+        save = False
 
         if step == checkpoint:
             checkpoint = next(checkpoint_generator)
             assert checkpoint > step
+            save = True
 
+        if (alpha * (out - out0) * y >= 1).all() and not converged:
+            converged = True
+            save = True
+
+        if save:
             state = {
                 'step': step,
-                'time': perf_counter() - time,
+                'wall': perf_counter() - wall,
                 't': t,
                 'dt': current_dt,
-                'bs': bs,
-                'df': df,
-                'batch_loss': loss.item(),
-                'ibs': i / len(x),
+                'dgrad': dgrad,
+                'dout': dout,
                 'norm': sum(p.norm().pow(2) for p in f.parameters()).sqrt().item(),
                 'dnorm': sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item(),
+                'grad_norm': grad.norm().item(),
             }
 
-            if op is not None:
-                state = op(f, state)
-            else:
-                print("[{d[step]:d} t={d[t]:.2e} wall={d[time]:.0f}] [dt={d[dt]:.1e} bs={d[bs]:d} df={d[df]:.1e}] [train i/P={d[ibs]:.2f} L={d[batch_loss]:.2e}]".format(d=state), flush=True)
+            yield f, state, converged
 
-            dynamics.append(state)
+        if converged:
+            break
 
-        if perf_counter() > time + train_time:
+        if perf_counter() > wall + max_walltime:
             break
 
         if torch.isnan(out).any():
             break
 
-    return f, dynamics
 
 
-def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, min_bs, max_bs, changes_bounds=(1e-4, 1e-2)):
-    # (1 - a f y).relu / a^2  =>  -y theta(1 - a f y) / a
+def train_kernel(ktrtr, ytr, tau, max_walltime, alpha, loss_prim, max_dgrad=math.inf, max_dout=math.inf):
     otr = ktrtr.new_zeros(len(ytr))
     velo = otr.clone()
 
-    if temperature > 0:
-        dt = temperature
-    else:
-        dt = 1e-50
+    dt = 1
     step_change_dt = 0
 
-    dynamics = []
-    checkpoint_generator = loglinspace(0.01, 1000)
+    checkpoint_generator = loglinspace(0.01, 100)
     checkpoint = next(checkpoint_generator)
-    time = perf_counter()
+    wall = perf_counter()
     t = 0
+    converged = False
+
+    lprim = loss_prim(otr * ytr) * ytr
+    grad = ktrtr @ lprim / len(ytr)
 
     for step in itertools.count():
 
+        state = copy.deepcopy((otr, velo, t))
+
         while True:
-            bs = len(otr) / (temperature / dt * (len(otr) - 1) + 1)
-            bs = min(max(min_bs, int(round(bs))), max_bs)
-            #if temperature > 0:
-            #    dt = bs * temperature / (1 - (bs - 1) / (len(x) - 1))
 
-            lprim = -ytr * (1 - alpha * otr * ytr >= 0).type(otr.dtype) / alpha
-            B = lprim.nonzero().flatten()
-            B = B[torch.randperm(len(B))[:bs]]
-
-            if len(B) == 0:
-                break
-
-            grad = ktrtr[:, B] @ lprim[B] / bs
-
-            state = copy.deepcopy((otr, velo, t))
-            if t == 0:
-                velo.zero_()
             if tau > 0:
                 x = math.exp(-dt / tau)
                 velo.mul_(x).add_(-(1 - x), grad)
@@ -282,52 +225,63 @@ def train_kernel(ktrtr, ytr, temperature, tau, train_time, alpha, min_bs, max_bs
             else:
                 velo.copy_(-grad)
             otr.add_(dt, velo)
+
             t += dt
             current_dt = dt
 
-            df = alpha * dt * velo.abs().max().item()
-            if math.isnan(df):
+            lprim = loss_prim(otr * ytr) * ytr
+            new_grad = ktrtr @ lprim / len(ytr)
+
+            dout = velo.mul(dt * alpha).abs().max().item()
+            if grad.norm() == 0 or new_grad.norm() == 0:
+                dgrad = 0
+            else:
+                dgrad = (grad - new_grad).norm().pow(2).div(grad.norm() * new_grad.norm()).item()
+
+            if dgrad < max_dgrad and dout < max_dout:
+                if dgrad < 0.1 * max_dgrad and dout < 0.1 * max_dout:
+                    dt *= 1.1
                 break
 
-            if changes_bounds[0] < df < changes_bounds[1]:
-                break
+            dt /= 10
 
-            if df > changes_bounds[1]:
-                otr, velo, t = state
-                dt /= 10
-                print("[{} +{}] max df={:.1e}".format(step, step - step_change_dt, df), flush=True)
-
+            print("[{} +{}] [dt={:.1e} dgrad={:.1e} dout={:.1e}]".format(step, step - step_change_dt, dt, dgrad, dout), flush=True)
             step_change_dt = step
+            otr.copy_(state[0])
+            velo.copy_(state[1])
+            t = state[2]
 
-            if df < changes_bounds[0]:
-                dt *= 1.1 if df > 0 else 10
-                break
+        grad = new_grad
 
-
-        if len(B) == 0:
-            break
+        save = False
 
         if step == checkpoint:
             checkpoint = next(checkpoint_generator)
             assert checkpoint > step
+            save = True
 
-            dynamics.append({
+        if (alpha * otr * ytr >= 1).all() and not converged:
+            converged = True
+            save = True
+
+        if save:
+            state = {
                 'step': step,
-                'time': perf_counter() - time,
+                'wall': perf_counter() - wall,
                 't': t,
                 'dt': current_dt,
-                'bs': bs,
-                'df': df,
-                'err': (otr * ytr <= 0).double().mean().item(),
-                'nd': (alpha * otr * ytr < 1).long().sum().item(),
-                'loss': alpha ** -2 * (1 - alpha * otr * ytr).relu().mean().item(),
-            })
-            print("[{d[step]:d} t={d[t]:.2e} wall={d[time]:.0f}] [dt={d[dt]:.1e} bs={d[bs]:d} df={d[df]:.1e}] [train L={d[loss]:.2e} err={d[err]:.2f} nd={d[nd]}]".format(d=dynamics[-1]), flush=True)
+                'dgrad': dgrad,
+                'dout': dout,
+                'grad_norm': grad.norm().item(),
+            }
 
-        if perf_counter() > time + train_time:
+            yield otr, velo, grad, state, converged
+
+        if converged:
+            break
+
+        if perf_counter() > wall + max_walltime:
             break
 
         if torch.isnan(otr).any():
             break
-
-    return otr, dynamics
