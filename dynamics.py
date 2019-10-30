@@ -103,11 +103,11 @@ def make_step(f, optimizer, dt, grad):
         p.grad = None
 
 
-def train_regular(f0, x, y, tau, max_walltime, alpha, loss, max_dgrad=math.inf, max_dout=math.inf):
+def train_regular(f0, x, y, tau, max_walltime, alpha, loss, subf0, max_dgrad=math.inf, max_dout=math.inf):
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
-        out0 = f0(x)
+        out0 = f0(x) if subf0 else 0
 
     dt = 1
     step_change_dt = 0

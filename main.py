@@ -40,6 +40,8 @@ class SplitEval(torch.nn.Module):
 
 
 def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
+    assert args.f0 == 1
+
     dynamics = []
 
     tau = args.tau_over_h * args.h
@@ -106,6 +108,10 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         otr0 = f0(xtr)
         ote0 = f0(xte)
 
+    if args.f0 == 0:
+        otr0 = torch.zeros_like(otr0)
+        ote0 = torch.zeros_like(ote0)
+
     j = torch.randperm(min(len(xte), len(xtr)))[:10 * args.chunk]
     ytrj = ytr[j]
     ytej = yte[j]
@@ -117,7 +123,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         tau *= min(1, args.tau_alpha_crit / args.alpha)
 
     dynamics = []
-    for f, state, done in train_regular(f0, xtr, ytr, tau, args.train_time, args.alpha, partial(loss_func, args), args.max_dgrad, args.max_dout):
+    for f, state, done in train_regular(f0, xtr, ytr, tau, args.train_time, args.alpha, partial(loss_func, args), bool(args.f0), args.max_dgrad, args.max_dout):
         with torch.no_grad():
             otr = f(xtr[j]) - otr0[j]
             ote = f(xte[j]) - ote0[j]
@@ -250,7 +256,7 @@ def execute(args):
         assert args.L is not None
         xtr = xtr.flatten(1)
         xte = xte.flatten(1)
-        f = FC(xtr.size(1), args.h, args.L, act, args.bias > 0).to(args.device)
+        f = FC(xtr.size(1), args.h, args.L, act, args.bias).to(args.device)
     elif arch == 'cv':
         assert args.bias == 0
         f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, pad=1, stride_first=True).to(args.device)
@@ -288,7 +294,7 @@ def main():
     parser.add_argument("--whitening", type=int, default=1)
 
     parser.add_argument("--arch", type=str, required=True)
-    parser.add_argument("--bias", type=int, default=0)
+    parser.add_argument("--bias", type=float, default=0)
     parser.add_argument("--L", type=int)
     parser.add_argument("--h", type=int, required=True)
     parser.add_argument("--mix_angle", type=float, default=45)
@@ -302,6 +308,7 @@ def main():
     parser.add_argument("--save_outputs", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
+    parser.add_argument("--f0", type=int, default=1)
 
     parser.add_argument("--tau_over_h", type=float, default=0.0)
     parser.add_argument("--tau_alpha_crit", type=float)

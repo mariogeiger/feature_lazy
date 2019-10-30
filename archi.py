@@ -46,7 +46,7 @@ class FC(nn.Module):
                 W = torch.cat(list(W))
 
             if self.bias:
-                B = getattr(self, "B{}".format(i))
+                B = self.bias * getattr(self, "B{}".format(i))
             else:
                 B = 0
 
