@@ -315,7 +315,7 @@ def main():
 
     parser.add_argument("--train_time", type=float, required=True)
     parser.add_argument("--chunk", type=int)
-    parser.add_argument("--max_dgrad", type=float, default=3e-5)
+    parser.add_argument("--max_dgrad", type=float, default=1e-4)
     parser.add_argument("--max_dout", type=float, default=1e-1)
 
     parser.add_argument("--loss", type=str, default="softhinge")
