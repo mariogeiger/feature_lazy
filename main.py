@@ -259,7 +259,7 @@ def execute(args):
         f = FC(xtr.size(1), args.h, args.L, act, args.bias).to(args.device)
     elif arch == 'cv':
         assert args.bias == 0
-        f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, pad=1, stride_first=True).to(args.device)
+        f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base, fsz=args.cv_fsz, pad=args.cv_pad, stride_first=args.cv_stride_first).to(args.device)
     elif arch == 'resnet':
         assert args.bias == 0
         f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
@@ -299,6 +299,12 @@ def main():
     parser.add_argument("--h", type=int, required=True)
     parser.add_argument("--mix_angle", type=float, default=45)
     parser.add_argument("--spbeta", type=float, default=5.0)
+    parser.add_argument("--cv_L1", type=int, default=2)
+    parser.add_argument("--cv_L2", type=int, default=2)
+    parser.add_argument("--cv_h_base", type=int, default=1)
+    parser.add_argument("--cv_fsz", type=int, default=5)
+    parser.add_argument("--cv_pad", type=int, default=1)
+    parser.add_argument("--cv_stride_first", type=int, default=1)
 
     parser.add_argument("--init_kernel", type=int, required=True)
     parser.add_argument("--regular", type=int, default=1)

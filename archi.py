@@ -73,7 +73,7 @@ class CV(nn.Module):
                 setattr(self, "W{}_{}".format(i, j), W)
                 h1 = h2
 
-        self.register_parameter("W", nn.Parameter(torch.randn(h1)))
+        self.W = nn.Parameter(torch.randn(h1))
 
         self.L1 = L1
         self.L2 = L2
@@ -95,7 +95,7 @@ class CV(nn.Module):
 
         x = x.flatten(2).mean(2)
 
-        W = getattr(self, "W")
+        W = self.W
         h = len(W)
         x = x @ (W / h)
         return x.view(-1)
