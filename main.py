@@ -301,7 +301,7 @@ def main():
     parser.add_argument("--spbeta", type=float, default=5.0)
     parser.add_argument("--cv_L1", type=int, default=2)
     parser.add_argument("--cv_L2", type=int, default=2)
-    parser.add_argument("--cv_h_base", type=int, default=1)
+    parser.add_argument("--cv_h_base", type=float, default=1)
     parser.add_argument("--cv_fsz", type=int, default=5)
     parser.add_argument("--cv_pad", type=int, default=1)
     parser.add_argument("--cv_stride_first", type=int, default=1)
