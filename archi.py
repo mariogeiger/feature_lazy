@@ -83,8 +83,8 @@ class CV(nn.Module):
 
     def forward(self, x):
         for i in range(self.L1):
-            assert x.size(2) >= 5 and x.size(3) >= 5
             for j in range(self.L2):
+                assert x.size(2) >= 5 and x.size(3) >= 5
                 W = getattr(self, "W{}_{}".format(i, j))
                 W = torch.stack(list(W))
 
