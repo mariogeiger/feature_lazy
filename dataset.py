@@ -40,7 +40,7 @@ def get_binary_pca_dataset(dataset, p, d, whitening, seed=None, device=None):
     x, y = get_normalized_dataset(dataset, seed)
 
     x = pca(x, d, whitening).to(device)
-    y = (2 * (y % 2) - 1).type(x.dtype).to(device)
+    y = (2 * (torch.arange(len(y)) % 2) - 1).type(x.dtype).to(device)
 
     xtr = x[:p]
     xte = x[p:]
@@ -74,7 +74,7 @@ def get_binary_dataset(dataset, p, seed=None, device=None):
     x, y = get_normalized_dataset(dataset, seed)
 
     x = x.to(device)
-    y = (2 * (y % 2) - 1).type(x.dtype).to(device)
+    y = (2 * (torch.arange(len(y)) % 2) - 1).type(x.dtype).to(device)
 
     xtr = x[:p]
     xte = x[p:]
