@@ -67,7 +67,7 @@ class CV(nn.Module):
 
         h1 = d
         for i in range(L1):
-            h2 = int(h * h_base ** i)
+            h2 = round(h * h_base ** i)
             for j in range(L2):
                 W = nn.ParameterList([nn.Parameter(torch.randn(h1, fsz, fsz)) for _ in range(h2)])
                 setattr(self, "W{}_{}".format(i, j), W)
