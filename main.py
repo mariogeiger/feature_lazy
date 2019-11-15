@@ -1,6 +1,5 @@
 # pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable
 import argparse
-import math
 import os
 import subprocess
 from functools import partial
@@ -12,6 +11,7 @@ from archi import CV, FC, Wide_ResNet
 from dataset import get_binary_dataset, get_binary_pca_dataset
 from dynamics import train_kernel, train_regular
 from kernels import compute_kernels
+from swish import SwishJit
 
 
 def loss_func(args, fy):
@@ -249,6 +249,10 @@ def execute(args):
     elif act == 'softplus':
         factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
         act = lambda x: torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
+    elif act == 'swish':
+        swish = SwishJit()
+        factor = swish(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item()
+        act = lambda x: swish(x).mul(factor)
     else:
         raise ValueError('act not specified')
 
