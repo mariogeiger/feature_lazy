@@ -5,13 +5,13 @@ import torch.nn as nn
 
 @torch.jit.script
 def swish_jit_fwd(x):
-    return x.mul(torch.sigmoid(x))
+    return x.mul(torch.sigmoid(x)).mul(1.6768)
 
 
 @torch.jit.script
 def swish_jit_bwd(x, grad_output):
     x_sigmoid = torch.sigmoid(x)
-    return grad_output * (x_sigmoid * (1 + x * (1 - x_sigmoid)))
+    return grad_output * (x_sigmoid * (1 + x * (1 - x_sigmoid))) * 1.6768
 
 
 class SwishJitAutoFn(torch.autograd.Function):
