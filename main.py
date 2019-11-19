@@ -11,6 +11,7 @@ from archi import CV, FC, Wide_ResNet
 from dataset import get_binary_dataset, get_binary_pca_dataset
 from dynamics import train_kernel, train_regular
 from kernels import compute_kernels
+from mnas import MnasNetLike
 from swish import SwishJit
 
 
@@ -267,6 +268,9 @@ def execute(args):
     elif arch == 'resnet':
         assert args.bias == 0
         f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
+    elif arch == 'mnas':
+        assert act == 'swish'
+        f = MnasNetLike(xtr.size(1), args.h)
     else:
         raise ValueError('arch not specified')
 
