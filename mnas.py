@@ -13,10 +13,10 @@ from swish import SwishJit
 
 
 class NTKConv(nn.Module):
-    def __init__(self, in_chs, out_chs, k, s=1, p=0, bias=True, groups=1):
+    def __init__(self, in_chs, out_chs, k, s=1, p=0, g=1, bias=True):
         super().__init__()
 
-        w = torch.randn(out_chs, in_chs, k, k)
+        w = torch.randn(out_chs, in_chs // g, k, k)
         n = max(1, 256**2 // w[0].numel())
         self.w = nn.ParameterList([nn.Parameter(w[j: j + n]) for j in range(0, len(w), n)])
 
@@ -24,12 +24,12 @@ class NTKConv(nn.Module):
 
         self.s = s
         self.p = p
-        self.groups = groups
+        self.g = g
 
     def forward(self, x):
         w = torch.cat(list(self.w))
         h = w[0].numel()
-        return F.conv2d(x, w / h ** 0.5, self.b, self.s, self.p, 1, self.groups)
+        return F.conv2d(x, w / h ** 0.5, self.b, self.s, self.p, 1, self.g)
 
 
 class NTKLinear(nn.Module):
@@ -51,7 +51,7 @@ class DepthwiseSeparableConv(nn.Module):
     """ DepthwiseSeparable block """
     def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=SwishJit):
         super().__init__()
-        self.conv_dw = NTKConv(in_chs, in_chs, k, s, p, bias=False, groups=in_chs)
+        self.conv_dw = NTKConv(in_chs, in_chs, k, s, p, g=in_chs, bias=False)
         self.act1 = act()
         self.conv_pw = NTKConv(in_chs, out_chs, k=1, bias=False)
         self.act2 = act()
@@ -77,7 +77,7 @@ class InvertedResidual(nn.Module):
         self.act1 = act()
 
         # Depth-wise convolution
-        self.conv_dw = NTKConv(mid_chs, mid_chs, k, s, p, bias=False, groups=mid_chs)
+        self.conv_dw = NTKConv(mid_chs, mid_chs, k, s, p, g=mid_chs, bias=False)
         self.act2 = act()
 
         # Point-wise linear projection
@@ -131,5 +131,6 @@ class MnasNetLike(nn.Module):
         x = self.conv_head(x)
         x = self.act2(x)
         x = self.global_pool(x)
+        x = x.flatten(1)
         x = self.classifier(x)
         return x.view(-1)
