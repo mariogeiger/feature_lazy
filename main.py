@@ -269,7 +269,6 @@ def execute(args):
         assert args.bias == 0
         f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
     elif arch == 'mnas':
-        assert act == 'swish'
         f = MnasNetLike(xtr.size(1), args.h)
     else:
         raise ValueError('arch not specified')
