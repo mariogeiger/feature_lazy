@@ -105,21 +105,25 @@ class InvertedResidual(nn.Module):
 class MnasNetLike(nn.Module):
     def __init__(self, d, h):
         super().__init__()
-        self.conv_stem = NTKConv(d, round(4 * h), k=3, s=2, p=1, bias=False)  # 16x16
+        self.conv_stem = NTKConv(d, round(4 * h), k=3, s=1, p=1, bias=False)  # 32x32
         self.act1 = SwishJit()
         self.blocks = nn.Sequential(
             DepthwiseSeparableConv(round(4 * h), round(2 * h), 3, 1, 1),
 
-            InvertedResidual(round(2 * h), round(3 * h), k=3, s=2, p=1, exp_ratio=3.0),  # 8x8
+            InvertedResidual(round(2 * h), round(3 * h), k=3, s=2, p=1, exp_ratio=3.0),  # 16x16
             InvertedResidual(round(3 * h), round(3 * h), k=3, s=1, p=1, exp_ratio=3.0),
             InvertedResidual(round(3 * h), round(3 * h), k=3, s=1, p=1, exp_ratio=3.0),
 
-            InvertedResidual(round(3 * h), round(5 * h), k=5, s=2, p=2, exp_ratio=3.0),  # 4x4
+            InvertedResidual(round(3 * h), round(5 * h), k=5, s=2, p=2, exp_ratio=3.0),  # 8x8
             InvertedResidual(round(5 * h), round(5 * h), k=5, s=1, p=2, exp_ratio=3.0),
             InvertedResidual(round(5 * h), round(5 * h), k=5, s=1, p=2, exp_ratio=3.0),
+
+            InvertedResidual(round(5 * h), round(7 * h), k=3, s=2, p=1, exp_ratio=3.0),  # 4x4
+            InvertedResidual(round(7 * h), round(7 * h), k=3, s=1, p=1, exp_ratio=3.0),
+            InvertedResidual(round(7 * h), round(7 * h), k=3, s=1, p=1, exp_ratio=3.0),
         )
 
-        self.conv_head = NTKConv(round(5 * h), round(20 * h), k=1, s=1, bias=False)
+        self.conv_head = NTKConv(round(7 * h), round(20 * h), k=1, s=1, bias=False)
         self.act2 = SwishJit()
         self.global_pool = nn.AdaptiveAvgPool2d(1)
         self.classifier = NTKLinear(round(20 * h), 1, bias=True)
