@@ -12,6 +12,21 @@ import torch.nn.functional as F
 from swish import SwishJit
 
 
+class NTKLinear(nn.Module):
+    def __init__(self, in_chs, out_chs, bias=True):
+        super().__init__()
+
+        w = torch.randn(out_chs, in_chs)
+        n = max(1, 256**2 // w[0].numel())
+        self.w = nn.ParameterList([nn.Parameter(w[j: j + n]) for j in range(0, len(w), n)])
+        self.b = nn.Parameter(torch.zeros(out_chs)) if bias else None
+
+    def forward(self, x):
+        w = torch.cat(list(self.w))
+        h = w[0].numel()
+        return F.linear(x, w / h ** 0.5, self.b)
+
+
 class NTKConv(nn.Module):
     def __init__(self, in_chs, out_chs, k, s=1, p=0, g=1, bias=True):
         super().__init__()
@@ -30,21 +45,6 @@ class NTKConv(nn.Module):
         w = torch.cat(list(self.w))
         h = w[0].numel()
         return F.conv2d(x, w / h ** 0.5, self.b, self.s, self.p, 1, self.g)
-
-
-class NTKLinear(nn.Module):
-    def __init__(self, in_chs, out_chs, bias=True):
-        super().__init__()
-
-        w = torch.randn(out_chs, in_chs)
-        n = max(1, 256**2 // w[0].numel())
-        self.w = nn.ParameterList([nn.Parameter(w[j: j + n]) for j in range(0, len(w), n)])
-        self.b = nn.Parameter(torch.zeros(out_chs)) if bias else None
-
-    def forward(self, x):
-        w = torch.cat(list(self.w))
-        h = w[0].numel()
-        return F.linear(x, w / h ** 0.5, self.b)
 
 
 class DepthwiseSeparableConv(nn.Module):
@@ -102,31 +102,41 @@ class InvertedResidual(nn.Module):
         return x
 
 
+class Mem:
+    def __init__(self, x=None):
+        self.x = x
+    def __call__(self, x=None):
+        self.x = x or self.x
+        return self.x
+
+
 class MnasNetLike(nn.Module):
     def __init__(self, d, h):
         super().__init__()
-        self.conv_stem = NTKConv(d, round(4 * h), k=3, s=1, p=1, bias=False)  # 32x32
+        c = Mem(d)
+
+        self.conv_stem = NTKConv(c(), c(round(4 * h)), k=5, s=2, p=2, bias=False)  # 16x16
         self.act1 = SwishJit()
         self.blocks = nn.Sequential(
-            DepthwiseSeparableConv(round(4 * h), round(2 * h), 3, 1, 1),
+            DepthwiseSeparableConv(c(), c(round(2 * h)), k=5, s=1, p=2),
 
-            InvertedResidual(round(2 * h), round(3 * h), k=3, s=2, p=1, exp_ratio=3.0),  # 16x16
-            InvertedResidual(round(3 * h), round(3 * h), k=3, s=1, p=1, exp_ratio=3.0),
-            InvertedResidual(round(3 * h), round(3 * h), k=3, s=1, p=1, exp_ratio=3.0),
+            InvertedResidual(c(), c(round(3 * h)), k=5, s=2, p=2, exp_ratio=3.0),  # 8x8
+            InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
+            # InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
 
-            InvertedResidual(round(3 * h), round(5 * h), k=5, s=2, p=2, exp_ratio=3.0),  # 8x8
-            InvertedResidual(round(5 * h), round(5 * h), k=5, s=1, p=2, exp_ratio=3.0),
-            InvertedResidual(round(5 * h), round(5 * h), k=5, s=1, p=2, exp_ratio=3.0),
+            InvertedResidual(c(), c(round(5 * h)), k=5, s=2, p=2, exp_ratio=3.0),  # 4x4
+            InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
+            # InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
 
-            InvertedResidual(round(5 * h), round(7 * h), k=3, s=2, p=1, exp_ratio=3.0),  # 4x4
-            InvertedResidual(round(7 * h), round(7 * h), k=3, s=1, p=1, exp_ratio=3.0),
-            InvertedResidual(round(7 * h), round(7 * h), k=3, s=1, p=1, exp_ratio=3.0),
+            # InvertedResidual(c(), c(round(7 * h)), k=5, s=2, p=2, exp_ratio=3.0),  # 2x2
+            # InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
+            # InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
         )
 
-        self.conv_head = NTKConv(round(7 * h), round(20 * h), k=1, s=1, bias=False)
+        self.conv_head = NTKConv(c(), c(round(20 * h)), k=1, s=1, bias=False)
         self.act2 = SwishJit()
         self.global_pool = nn.AdaptiveAvgPool2d(1)
-        self.classifier = NTKLinear(round(20 * h), 1, bias=True)
+        self.classifier = NTKLinear(c(), 1, bias=True)
 
     def forward(self, x):
         x = self.conv_stem(x)
