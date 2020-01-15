@@ -37,6 +37,7 @@ def mse(out, y, alpha):
 
 def run_regular(args, f0, loss, xtr, ytr, xte, yte):
 
+    f0.train(True)
     with torch.no_grad():
         otr0 = f0(xtr)
         ote0 = f0(xte)
@@ -54,6 +55,7 @@ def run_regular(args, f0, loss, xtr, ytr, xte, yte):
         batch = torch.randperm(len(xtr))[:args.bs]
         xb = xtr[batch]
 
+        f.train(True)
         loss_value = loss(f(xb) - otr0[batch], ytr[batch], args.alpha)
 
         optimizer.zero_grad()
@@ -71,6 +73,7 @@ def run_regular(args, f0, loss, xtr, ytr, xte, yte):
             assert len(xtr) < len(xte)
             j = torch.randperm(len(xtr))
 
+            f.train(True)
             with torch.no_grad():
                 otr = f(xtr[j]) - otr0[j]
                 ote = f(xte[j]) - ote0[j]
@@ -179,28 +182,33 @@ def execute(args):
 
     torch.manual_seed(args.init_seed + hash(args.alpha))
 
-    arch, act = args.arch.split('_')
-    if act == 'relu':
-        act = lambda x: 2 ** 0.5 * torch.relu(x)
-    elif act == 'tanh':
-        act = torch.tanh
-    elif act == 'softplus':
-        factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
-        act = lambda x: torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
-    else:
-        raise ValueError('act not specified')
+    if '_' in args.arch:
+        arch, act = args.arch.split('_')
+        if act == 'relu':
+            act = lambda x: 2 ** 0.5 * torch.relu(x)
+        elif act == 'tanh':
+            act = torch.tanh
+        elif act == 'softplus':
+            factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
+            act = lambda x: torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
+        else:
+            raise ValueError('act not specified')
 
-    if arch == 'fc':
-        assert args.L is not None
-        xtr = xtr.flatten(1)
-        xte = xte.flatten(1)
-        f = FC(xtr.size(1), args.h, args.L, act).to(args.device)
-    elif arch == 'cv':
-        f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, pad=1, stride_first=True).to(args.device)
-    elif arch == 'resnet':
-        f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
+        if arch == 'fc':
+            assert args.L is not None
+            xtr = xtr.flatten(1)
+            xte = xte.flatten(1)
+            f = FC(xtr.size(1), args.h, args.L, act).to(args.device)
+        elif arch == 'cv':
+            f = CV(xtr.size(1), args.h, h_base=1, L1=2, L2=2, act=act, fsz=5, pad=1, stride_first=True).to(args.device)
+        elif arch == 'resnet':
+            f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
+        else:
+            raise ValueError('arch not specified')
     else:
-        raise ValueError('arch not specified')
+        archi, repo = args.arch.split('@')
+        f = torch.hub.load(repo, archi, pretrained=False, num_classes=1)
+        f = f.to(dtype=torch.get_default_dtype(), device=args.device)
 
     f = SplitEval(f, args.chunk)
 
