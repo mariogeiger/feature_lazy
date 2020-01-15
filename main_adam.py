@@ -20,7 +20,10 @@ class SplitEval(torch.nn.Module):
         self.size = size
 
     def forward(self, x):
-        return torch.cat([self.f(x[i: i + self.size]) for i in range(0, len(x), self.size)])
+        out = torch.cat([self.f(x[i: i + self.size]) for i in range(0, len(x), self.size)])
+        out = out.flatten()
+        assert out.dim() == 1
+        return out
 
 
 def hinge(out, y, alpha):
