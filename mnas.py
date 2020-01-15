@@ -113,9 +113,9 @@ class Mem:
 class MnasNetLike(nn.Module):
     def __init__(self, d, h):
         super().__init__()
-        c = Mem(d)
+        c = Mem()
 
-        self.conv_stem = NTKConv(c(), c(round(4 * h)), k=5, s=2, p=2, bias=False)  # 16x16
+        self.conv_stem = NTKConv(c(d), c(round(4 * h)), k=5, s=2, p=2, bias=False)  # 16x16
         self.act1 = SwishJit()
         self.blocks = nn.Sequential(
             DepthwiseSeparableConv(c(), c(round(2 * h)), k=5, s=1, p=2),
