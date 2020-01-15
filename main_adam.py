@@ -182,7 +182,7 @@ def execute(args):
 
     torch.manual_seed(args.init_seed + hash(args.alpha))
 
-    if '_' in args.arch:
+    if not '@' in args.arch:
         arch, act = args.arch.split('_')
         if act == 'relu':
             act = lambda x: 2 ** 0.5 * torch.relu(x)
@@ -243,7 +243,7 @@ def main():
 
     parser.add_argument("--arch", type=str, required=True)
     parser.add_argument("--L", type=int)
-    parser.add_argument("--h", type=int, required=True)
+    parser.add_argument("--h", type=int)
     parser.add_argument("--mix_angle", type=float, default=45)
     parser.add_argument("--spbeta", type=float, default=5.0)
 
