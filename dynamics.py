@@ -103,11 +103,25 @@ def make_step(f, optimizer, dt, grad):
         p.grad = None
 
 
-def train_regular(f0, x, y, tau, max_walltime, alpha, loss, subf0, max_dgrad=math.inf, max_dout=math.inf):
+def output_gradient(f, loss, x, y, out0, chunk):
+    out = []
+    grad = 0
+    for i in [slice(i, i+chunk) for i in range(0, len(x), chunk)]:
+        o = f(x[i])
+        l = loss((o - out0[i]) * y[i]).sum() / len(x)
+        grad += gradient(l, f.parameters())
+        out.append(o)
+    return torch.cat(out), grad
+
+
+def train_regular(f0, x, y, tau, max_walltime, alpha, loss, subf0, chunk, max_dgrad=math.inf, max_dout=math.inf):
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
-        out0 = f0(x) if subf0 else 0
+        with torch.no_grad():
+            out0 = f0(x)
+        if not subf0:
+            out0 = torch.zeros_like(out0)
 
     dt = 1
     step_change_dt = 0
@@ -119,8 +133,7 @@ def train_regular(f0, x, y, tau, max_walltime, alpha, loss, subf0, max_dgrad=mat
     t = 0
     converged = False
 
-    out = f(x)
-    grad = gradient(loss((out - out0) * y).mean(), f.parameters())
+    out, grad = output_gradient(f, loss, x, y, out0, chunk)
 
     for step in itertools.count():
 
@@ -131,8 +144,7 @@ def train_regular(f0, x, y, tau, max_walltime, alpha, loss, subf0, max_dgrad=mat
             t += dt
             current_dt = dt
 
-            new_out = f(x)
-            new_grad = gradient(loss((new_out - out0) * y).mean(), f.parameters())
+            new_out, new_grad = output_gradient(f, loss, x, y, out0, chunk)
 
             dout = (out - new_out).mul(alpha).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:

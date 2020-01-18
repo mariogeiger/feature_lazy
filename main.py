@@ -124,7 +124,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         tau *= min(1, args.tau_alpha_crit / args.alpha)
 
     dynamics = []
-    for f, state, done in train_regular(f0, xtr, ytr, tau, args.train_time, args.alpha, partial(loss_func, args), bool(args.f0), args.max_dgrad, args.max_dout):
+    for f, state, done in train_regular(f0, xtr, ytr, tau, args.train_time, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
         with torch.no_grad():
             otr = f(xtr[j]) - otr0[j]
             ote = f(xte[j]) - ote0[j]
