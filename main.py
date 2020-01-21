@@ -181,7 +181,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             yield f, out
 
 
-def run_exp(args, f0, xtr, ytr, xte, yte):
+def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
     run = {
         'args': args,
         'N': sum(p.numel() for p in f0.parameters()),
@@ -199,15 +199,21 @@ def run_exp(args, f0, xtr, ytr, xte, yte):
         del init_kernel
 
     if args.regular == 1:
+        it = iter([0.99, 0.95, 0.8, 0.6, 0.4, 0.2, 0.1])
+        al = next(it)
         for f, out in run_regular(args, f0, xtr, ytr, xte, yte):
             run['regular'] = out
+            if args.store_kernel == 1:
+                if out['dynamics'][-1]['train']['aloss'] < al * out['dynamics'][0]['train']['aloss']:
+                    al = next(it)
+                    out['dynamics'][-1]['kernel'] = compute_kernels(f, xtk, xte[:len(xtk)])
             yield run
 
         if args.delta_kernel == 1 or args.final_kernel == 1:
-            final_kernel = compute_kernels(f, xtr, xte[:len(xtr)])
+            final_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
 
         if args.final_kernel == 1:
-            run['final_kernel'] = run_kernel(args, *final_kernel, f, xtr, ytr, xte, yte)
+            run['final_kernel'] = run_kernel(args, *final_kernel, f, xtk, ytk, xte, yte)
 
         if args.delta_kernel == 1:
             final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
@@ -227,14 +233,21 @@ def execute(args):
         torch.set_default_dtype(torch.float32)
 
     if args.d is None or args.d == 0:
-        (xtr, ytr), (xte, yte) = get_binary_dataset(args.dataset, args.ptr, args.data_seed, args.device)
+        (xtr, ytr), (xte, yte) = get_binary_dataset(args.dataset, args.ptr + args.ptk, args.data_seed, args.device)
     else:
-        (xtr, ytr), (xte, yte) = get_binary_pca_dataset(args.dataset, args.ptr, args.d, args.whitening, args.data_seed, args.device)
+        (xtr, ytr), (xte, yte) = get_binary_pca_dataset(args.dataset, args.ptr + args.ptk, args.d, args.whitening, args.data_seed, args.device)
+
+    xtr = xtr[:args.ptr]
+    ytr = ytr[:args.ptr]
+    xtk = xtr[args.ptr:]
+    ytk = ytr[args.ptr:]
 
     xtr = xtr.type(torch.get_default_dtype())
+    xtk = xtk.type(torch.get_default_dtype())
     xte = xte.type(torch.get_default_dtype())
     ytr = ytr.type(torch.get_default_dtype())
     yte = yte.type(torch.get_default_dtype())
+    ytk = ytk.type(torch.get_default_dtype())
 
     assert len(xte) >= args.pte
     xte = xte[:args.pte]
@@ -260,6 +273,7 @@ def execute(args):
     if arch == 'fc':
         assert args.L is not None
         xtr = xtr.flatten(1)
+        xtk = xtk.flatten(1)
         xte = xte.flatten(1)
         f = FC(xtr.size(1), args.h, args.L, act, args.bias).to(args.device)
     elif arch == 'cv':
@@ -276,7 +290,7 @@ def execute(args):
     f = SplitEval(f, args.chunk)
 
     torch.manual_seed(args.batch_seed)
-    for run in run_exp(args, f, xtr, ytr, xte, yte):
+    for run in run_exp(args, f, xtr, ytr, xtk, ytk, xte, yte):
         yield run
 
 
@@ -296,6 +310,7 @@ def main():
 
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
+    parser.add_argument("--ptk", type=int, default=0)
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
     parser.add_argument("--whitening", type=int, default=1)
