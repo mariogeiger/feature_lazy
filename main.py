@@ -205,7 +205,10 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             run['regular'] = out
             if args.store_kernel == 1:
                 if out['dynamics'][-1]['train']['aloss'] < al * out['dynamics'][0]['train']['aloss']:
-                    al = next(it)
+                    try:
+                        al = next(it)
+                    except StopIteration:
+                        al = 0
                     out['dynamics'][-1]['kernel'] = compute_kernels(f, xtk, xte[:len(xtk)])
             yield run
 
@@ -237,10 +240,10 @@ def execute(args):
     else:
         (xtr, ytr), (xte, yte) = get_binary_pca_dataset(args.dataset, args.ptr + args.ptk, args.d, args.whitening, args.data_seed, args.device)
 
-    xtr = xtr[:args.ptr]
-    ytr = ytr[:args.ptr]
     xtk = xtr[args.ptr:]
     ytk = ytr[args.ptr:]
+    xtr = xtr[:args.ptr]
+    ytr = ytr[:args.ptr]
 
     xtr = xtr.type(torch.get_default_dtype())
     xtk = xtk.type(torch.get_default_dtype())
