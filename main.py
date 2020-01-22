@@ -367,14 +367,17 @@ def main():
         args.chunk = args.ptr
 
     torch.save(args, args.pickle)
+    saved = False
     try:
         for res in execute(args):
             res['git'] = git
             with open(args.pickle, 'wb') as f:
                 torch.save(args, f)
                 torch.save(res, f)
+                saved = True
     except:
-        os.remove(args.pickle)
+        if not saved:
+            os.remove(args.pickle)
         raise
 
 
