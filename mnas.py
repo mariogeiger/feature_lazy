@@ -111,27 +111,20 @@ class Mem:
 
 
 class MnasNetLike(nn.Module):
-    def __init__(self, d, h):
+    def __init__(self, d, h, n_blocks=2, n_layers=2):
         super().__init__()
         c = Mem()
 
         self.conv_stem = NTKConv(c(d), c(round(4 * h)), k=5, s=2, p=2, bias=False)  # 16x16
         self.act1 = SwishJit()
+
         self.blocks = nn.Sequential(
             DepthwiseSeparableConv(c(), c(round(2 * h)), k=5, s=1, p=2),
-
-            InvertedResidual(c(), c(round(3 * h)), k=5, s=2, p=2, exp_ratio=3.0),  # 8x8
-            InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
-            # InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
-
-            InvertedResidual(c(), c(round(5 * h)), k=5, s=2, p=2, exp_ratio=3.0),  # 4x4
-            InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
-            # InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
-
-            # InvertedResidual(c(), c(round(7 * h)), k=5, s=2, p=2, exp_ratio=3.0),  # 2x2
-            # InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
-            # InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0),
         )
+        for i in range(n_blocks):
+            self.blocks.add_module(InvertedResidual(c(), c(round((2 * i + 1) * h)), k=5, s=2, p=2, exp_ratio=3.0))
+            for _ in range(n_layers - 1):
+                self.blocks.add_module(InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0))
 
         self.conv_head = NTKConv(c(), c(round(20 * h)), k=1, s=1, bias=False)
         self.act2 = SwishJit()
