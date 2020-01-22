@@ -123,8 +123,8 @@ class MnasNetLike(nn.Module):
         )
         for i in range(n_blocks):
             self.blocks.add_module(InvertedResidual(c(), c(round((2 * i + 1) * h)), k=5, s=2, p=2, exp_ratio=3.0))
-            for _ in range(n_layers - 1):
-                self.blocks.add_module(InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0))
+            for j in range(n_layers - 1):
+                self.blocks.add_module(f"ir{i}_{j}", InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0))
 
         self.conv_head = NTKConv(c(), c(round(20 * h)), k=1, s=1, bias=False)
         self.act2 = SwishJit()
