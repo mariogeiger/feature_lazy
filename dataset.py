@@ -115,6 +115,9 @@ def get_normalized_dataset(dataset, seed):
     elif dataset == "cifar_catplane":
         tr = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform) if y in [3, 0]]
         te = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform) if y in [3, 0]]
+    elif dataset == "catdog":
+        tr = torchvision.datasets.ImageFolder('~/.torchvision/datasets/catdog', transform=transform)
+        te = []
     else:
         raise ValueError("unknown dataset")
 
