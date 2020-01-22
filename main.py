@@ -206,7 +206,12 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                         al = next(it)
                     except StopIteration:
                         al = 0
-                    out['dynamics'][-1]['kernel'] = compute_kernels(f, xtk, xte[:len(xtk)])
+                    ktrtr, ktetr, ktete = compute_kernels(f, xtk, xte[:len(xtk)])
+                    out['dynamics'][-1]['kernel'] = {
+                        'trtr': ktrtr.cpu(),
+                        'tetr': ktetr.cpu(),
+                        'tete': ktete.cpu(),
+                    }
 
             if done or perf_counter() - t > 120:
                 t = perf_counter()
