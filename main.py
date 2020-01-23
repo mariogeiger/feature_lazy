@@ -161,19 +161,24 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 otr = f(xtr) - otr0
                 ote = f(xte) - ote0
 
-        out = {
-            'dynamics': dynamics,
-            'train': {
-                'f0': otr0,
-                'outputs': otr,
-                'labels': ytr,
-            },
-            'test': {
-                'f0': ote0,
-                'outputs': ote,
-                'labels': yte,
+            out = {
+                'dynamics': dynamics,
+                'train': {
+                    'f0': otr0,
+                    'outputs': otr,
+                    'labels': ytr,
+                },
+                'test': {
+                    'f0': ote0,
+                    'outputs': ote,
+                    'labels': yte,
+                }
             }
-        }
+        else:
+            out = {
+                'dynamics': dynamics,
+            }
+
         yield f, out, done
 
 
@@ -195,7 +200,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         del init_kernel
 
     if args.regular == 1:
-        it = iter([0.99, 0.95, 0.8, 0.6, 0.4, 0.2, 0.1])
+        it = iter([0.99, 0.95, 0.8, 0.7, 0.6, 0.4, 0.2, 0.1])
         al = next(it)
         t = perf_counter()
         for f, out, done in run_regular(args, f0, xtr, ytr, xte, yte):
@@ -211,6 +216,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                         'trtr': ktrtr.cpu(),
                         'tetr': ktetr.cpu(),
                         'tete': ktete.cpu(),
+                        'ytk': ytk,
+                        'yte': yte[:len(xtk)],
                     }
 
             if done or perf_counter() - t > 120:
