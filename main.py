@@ -228,7 +228,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             final_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
 
         if args.final_kernel == 1:
-            run['final_kernel'] = run_kernel(args, *final_kernel, f, xtk, ytk, xte, yte)
+            run['final_kernel'] = run_kernel(args, *final_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
 
         if args.delta_kernel == 1:
             final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
