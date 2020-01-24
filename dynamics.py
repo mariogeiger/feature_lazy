@@ -114,7 +114,7 @@ def output_gradient(f, loss, x, y, out0, chunk):
     return torch.cat(out), grad
 
 
-def train_regular(f0, x, y, tau, max_walltime, alpha, loss, subf0, chunk, max_dgrad=math.inf, max_dout=math.inf):
+def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, max_dout=math.inf):
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
@@ -195,9 +195,6 @@ def train_regular(f0, x, y, tau, max_walltime, alpha, loss, subf0, chunk, max_dg
             yield f, state, converged
 
         if converged:
-            break
-
-        if perf_counter() > wall + max_walltime:
             break
 
         if torch.isnan(out).any():

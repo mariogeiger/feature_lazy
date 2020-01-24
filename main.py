@@ -121,8 +121,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     if args.tau_alpha_crit is not None:
         tau *= min(1, args.tau_alpha_crit / args.alpha)
 
+    wall = perf_counter()
     dynamics = []
-    for f, state, done in train_regular(f0, xtr, ytr, tau, args.train_time, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
+    for f, state, done in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
         with torch.no_grad():
             otr = f(xtr[j]) - otr0[j]
             ote = f(xte[j]) - ote0[j]
@@ -156,6 +157,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         print("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]".format(d=state, p=len(j)), flush=True)
         dynamics.append(state)
 
+        if wall + args.train_time < perf_counter():
+            done = True
+
         if done:
             with torch.no_grad():
                 otr = f(xtr) - otr0
@@ -180,6 +184,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             }
 
         yield f, out, done
+        if done:
+            break
 
 
 def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
