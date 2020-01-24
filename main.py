@@ -285,9 +285,7 @@ def execute(args):
         factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
         act = lambda x: torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
     elif act == 'swish':
-        swish = SwishJit()
-        factor = swish(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item()
-        act = lambda x: swish(x).mul(factor)
+        act = SwishJit()
     else:
         raise ValueError('act not specified')
 
