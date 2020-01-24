@@ -195,10 +195,10 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
     }
 
     if args.delta_kernel == 1 or args.init_kernel == 1:
-        init_kernel = compute_kernels(f0, xtr, xte[:len(xtr)])
+        init_kernel = compute_kernels(f0, xtk, xte[:len(xtk)])
 
     if args.init_kernel == 1:
-        run['init_kernel'] = run_kernel(args, *init_kernel, f0, xtr, ytr, xte, yte)
+        run['init_kernel'] = run_kernel(args, *init_kernel, f0, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
 
     if args.delta_kernel == 1:
         init_kernel = (init_kernel[0].cpu(), init_kernel[2].cpu())
