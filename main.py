@@ -1,5 +1,6 @@
 # pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable
 import argparse
+import copy
 import os
 import subprocess
 from functools import partial
@@ -225,6 +226,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                         'ytk': ytk,
                         'yte': yte[:len(xtk)],
                     }
+                    out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
 
             if done or perf_counter() - t > 120:
                 t = perf_counter()
