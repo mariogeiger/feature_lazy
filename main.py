@@ -248,7 +248,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
     yield run
 
 
-def execute(args):
+def init(args):
     torch.backends.cudnn.benchmark = True
     if args.dtype == 'float64':
         torch.set_default_dtype(torch.float64)
@@ -309,6 +309,12 @@ def execute(args):
         raise ValueError('arch not specified')
 
     f = SplitEval(f, args.chunk)
+
+    return f, xtr, ytr, xtk, ytk, xte, yte
+
+
+def execute(args):
+    f, xtr, ytr, xtk, ytk, xte, yte = init(args)
 
     torch.manual_seed(args.batch_seed)
     for run in run_exp(args, f, xtr, ytr, xtk, ytk, xte, yte):
