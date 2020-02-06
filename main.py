@@ -200,6 +200,13 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
     if args.init_kernel == 1:
         run['init_kernel'] = run_kernel(args, *init_kernel, f0, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
+        if args.ptr < args.ptk:
+            ktktk, ktetk, ktete = init_kernel
+            ktktk = ktktk[:len(xtr)][:, :len(xtr)]
+            ktetk = ktetk[:, :len(xtr)]
+            run['init_kernel_ptr'] = run_kernel(args, ktktk, ktetk, ktete, f0, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)])
+        else:
+            run['init_kernel_ptr'] = run['init_kernel']
 
     if args.delta_kernel == 1:
         init_kernel = (init_kernel[0].cpu(), init_kernel[2].cpu())
@@ -237,6 +244,13 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
         if args.final_kernel == 1:
             run['final_kernel'] = run_kernel(args, *final_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
+            if args.ptr < args.ptk:
+                ktktk, ktetk, ktete = final_kernel
+                ktktk = ktktk[:len(xtr)][:, :len(xtr)]
+                ktetk = ktetk[:, :len(xtr)]
+                run['final_kernel_ptr'] = run_kernel(args, ktktk, ktetk, ktete, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)])
+            else:
+                run['final_kernel_ptr'] = run['final_kernel']
 
         if args.delta_kernel == 1:
             final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
