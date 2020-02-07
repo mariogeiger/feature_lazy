@@ -121,6 +121,14 @@ def get_normalized_dataset(dataset, seed):
     elif dataset == "catdog":
         tr = torchvision.datasets.ImageFolder('~/.torchvision/datasets/catdog', transform=transform)
         te = []
+    elif dataset == "pat1d":
+        from pat1d import gen
+        tr = []
+        te = []
+        while len(tr) < 100000:
+            x, y = gen(120)
+            if y < 4:
+                tr.append((x.view(1, -1), y % 2))
     else:
         raise ValueError("unknown dataset")
 
