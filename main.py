@@ -44,6 +44,12 @@ class SplitEval(torch.nn.Module):
 def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
     assert args.f0 == 1
 
+    assert ktrtr.shape == (len(xtr), len(xtr))
+    assert ktetr.shape == (len(xte), len(xtr))
+    assert ktete.shape == (len(xte), len(xte))
+    assert len(yte) == len(xte)
+    assert len(ytr) == len(xtr)
+
     dynamics = []
 
     tau = args.tau_over_h * args.h
@@ -61,7 +67,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             'labels': ytr if args.save_outputs else None,
         }
 
-        print("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}]".format(d=state), flush=True)
+        print("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr}]".format(d=state, ptr=len(xtr)), flush=True)
         dynamics.append(state)
 
     c = torch.lstsq(otr.view(-1, 1), ktrtr).solution.flatten()
