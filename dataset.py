@@ -126,9 +126,8 @@ def get_normalized_dataset(dataset, seed):
         tr = []
         te = []
         while len(tr) < 100000:
-            x, y = gen(120)
-            if y < 4:
-                tr.append((x.view(1, -1), y % 2))
+            x, y = gen(70)
+            tr.append((x.view(1, -1), y > 0))
     else:
         raise ValueError("unknown dataset")
 
