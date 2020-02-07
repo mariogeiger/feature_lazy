@@ -199,6 +199,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
     run = {
         'args': args,
         'N': sum(p.numel() for p in f0.parameters()),
+        'finished': False,
     }
 
     if args.delta_kernel == 1 or args.init_kernel == 1:
@@ -265,6 +266,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 'test': (init_kernel[1] - final_kernel[1]).norm().item(),
             }
 
+    run['finished'] = True
     yield run
 
 
