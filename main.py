@@ -226,20 +226,22 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         t = perf_counter()
         for f, out, done in run_regular(args, f0, xtr, ytr, xte, yte):
             run['regular'] = out
-            if args.store_kernel == 1:
+            if args.running_kernel == 1:
                 if out['dynamics'][-1]['train']['aloss'] < al * out['dynamics'][0]['train']['aloss']:
                     try:
                         al = next(it)
                     except StopIteration:
                         al = 0
-                    ktrtr, ktetr, ktete = compute_kernels(f, xtk, xte[:len(xtk)])
-                    out['dynamics'][-1]['kernel'] = {
-                        'trtr': ktrtr.cpu(),
-                        'tetr': ktetr.cpu(),
-                        'tete': ktete.cpu(),
-                        'ytk': ytk,
-                        'yte': yte[:len(xtk)],
-                    }
+
+                    running_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
+                    out['dynamics'][-1]['kernel'] = run_kernel(args, *running_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
+                    if args.ptr < args.ptk:
+                        ktktk, ktetk, ktete = running_kernel
+                        ktktk = ktktk[:len(xtr)][:, :len(xtr)]
+                        ktetk = ktetk[:, :len(xtr)]
+                        out['dynamics'][-1]['kernel_ptr'] = run_kernel(args, ktktk, ktetk, ktete, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)])
+                    else:
+                        out['dynamics'][-1]['kernel_ptr'] = out['dynamics'][-1]['kernel']
                     out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
 
             if done or perf_counter() - t > 120:
@@ -379,6 +381,7 @@ def main():
 
     parser.add_argument("--init_kernel", type=int, required=True)
     parser.add_argument("--regular", type=int, default=1)
+    parser.add_argument("--running_kernel", type=int, default=0)
     parser.add_argument("--final_kernel", type=int, required=True)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
