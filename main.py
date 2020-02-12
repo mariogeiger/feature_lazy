@@ -135,6 +135,10 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             otr = f(xtr[j]) - otr0[j]
             ote = f(xte[j]) - ote0[j]
 
+        state['wall'] = perf_counter() - wall,
+        state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item(),
+        state['dnorm'] = sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item(),
+
         if args.arch.split('_')[0] == 'fc':
             def getw(f, i):
                 return torch.cat(list(getattr(f.f, "W{}".format(i))))

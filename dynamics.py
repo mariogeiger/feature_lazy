@@ -124,18 +124,49 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
             out0 = torch.zeros_like(out0)
 
     dt = 1
+    current_dt = 0
     step_change_dt = 0
     optimizer = ContinuousMomentum(f.parameters(), dt=dt, tau=tau)
 
     checkpoint_generator = loglinspace(0.01, 100)
     checkpoint = next(checkpoint_generator)
-    wall = perf_counter()
     t = 0
     converged = False
 
     out, grad = output_gradient(f, loss, x, y, out0, chunk)
+    dgrad, dout = 0, 0
 
     for step in itertools.count():
+
+        save = False
+
+        if step == checkpoint:
+            checkpoint = next(checkpoint_generator)
+            assert checkpoint > step
+            save = True
+
+        if (alpha * (out - out0) * y >= 1).all() and not converged:
+            converged = True
+            save = True
+
+        if save:
+            state = {
+                'step': step,
+                't': t,
+                'dt': current_dt,
+                'dgrad': dgrad,
+                'dout': dout,
+                'grad_norm': grad.norm().item(),
+            }
+
+            yield f, state, converged
+
+        if converged:
+            break
+
+        if torch.isnan(out).any():
+            break
+
 
         state = copy.deepcopy((f.state_dict(), optimizer.state_dict(), t))
 
@@ -167,39 +198,6 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
 
         out = new_out
         grad = new_grad
-
-        save = False
-
-        if step == checkpoint:
-            checkpoint = next(checkpoint_generator)
-            assert checkpoint > step
-            save = True
-
-        if (alpha * (out - out0) * y >= 1).all() and not converged:
-            converged = True
-            save = True
-
-        if save:
-            state = {
-                'step': step,
-                'wall': perf_counter() - wall,
-                't': t,
-                'dt': current_dt,
-                'dgrad': dgrad,
-                'dout': dout,
-                'norm': sum(p.norm().pow(2) for p in f.parameters()).sqrt().item(),
-                'dnorm': sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item(),
-                'grad_norm': grad.norm().item(),
-            }
-
-            yield f, state, converged
-
-        if converged:
-            break
-
-        if torch.isnan(out).any():
-            break
-
 
 
 def train_kernel(ktrtr, ytr, tau, max_walltime, alpha, loss_prim, max_dgrad=math.inf, max_dout=math.inf):
