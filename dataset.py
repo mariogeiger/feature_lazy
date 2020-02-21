@@ -114,7 +114,7 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
         tr = torchvision.datasets.ImageFolder('~/.torchvision/datasets/catdog', transform=transform)
         te = []
     elif dataset in ['stripe', 'sphere']:
-        x = torch.randn(p, d, dtype=torch.float64)
+        x = torch.randn(2 * p, d, dtype=torch.float64)
         if dataset == 'stripe':
             y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
         if dataset == 'sphere':
@@ -127,7 +127,7 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
         from pat1d import gen
         tr = []
         te = []
-        while len(tr) < p:
+        while len(tr) < 2 * p:
             x, y = gen(70)
             tr.append((x.view(1, -1), y > 0))
     else:
@@ -153,7 +153,7 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
     y = torch.tensor([y for x, y in dataset], dtype=torch.long)
 
     if p > 0:
-        assert len(x) >= p
+        assert len(x) >= p, (x.shape, p)
         x, y = x[:p], y[:p]
     if d > 0:
         assert x.flatten(1).shape[1] == d
