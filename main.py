@@ -8,7 +8,7 @@ from time import perf_counter
 
 import torch
 
-from archi import CV, FC, Wide_ResNet
+from archi import CV, FC, Wide_ResNet, FixedWeights
 from dataset import get_binary_dataset
 from dynamics import train_kernel, train_regular
 from kernels import compute_kernels
@@ -332,21 +332,24 @@ def init(args):
         xtr = xtr.flatten(1)
         xtk = xtk.flatten(1)
         xte = xte.flatten(1)
-        f = FC(xtr.size(1), args.h, args.L, act, args.bias).to(args.device)
+        f = FC(xtr.size(1), args.h, args.L, act, args.bias)
     elif arch == 'cv':
         assert args.bias == 0
         f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base,
-               fsz=args.cv_fsz, pad=args.cv_pad, stride_first=args.cv_stride_first).to(args.device)
+               fsz=args.cv_fsz, pad=args.cv_pad, stride_first=args.cv_stride_first)
     elif arch == 'resnet':
         assert args.bias == 0
-        f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
+        f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle)
     elif arch == 'mnas':
         assert act_str == 'swish'
-        f = MnasNetLike(xtr.size(1), args.h, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2).to(args.device)
+        f = MnasNetLike(xtr.size(1), args.h, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2)
+    elif arch == 'fixed_weights':
+        f = FixedWeights(args.d, args.h, act, args.bias)
     else:
         raise ValueError('arch not specified')
 
     f = SplitEval(f, args.chunk)
+    f = f.to(args.device)
 
     return f, xtr, ytr, xtk, ytk, xte, yte
 

@@ -61,6 +61,24 @@ class FC(nn.Module):
         return x.view(-1)
 
 
+class FixedWeights(nn.Module):
+    def __init__(self, d, h, act, bias):
+        super().__init__()
+
+        self.register_buffer("W0", torch.randn(h, d))
+        self.B = nn.Parameter(torch.zeros(h))
+        self.W = nn.Parameter(torch.randn(h))
+
+        self.act = act
+        self.bias = bias
+
+    def forward(self, x):
+        d = x.size(1)
+        B = self.bias * self.B
+        h = len(B)
+        return self.act(x @ (self.W0.T / d**0.5) + B) @ (self.W / h)
+
+
 class CV(nn.Module):
     def __init__(self, d, h, L1, L2, act, h_base, fsz, pad, stride_first):
         super().__init__()
