@@ -106,7 +106,7 @@ def make_step(f, optimizer, dt, grad):
 def output_gradient(f, loss, x, y, out0, chunk):
     out = []
     grad = 0
-    for i in [slice(i, i+chunk) for i in range(0, len(x), chunk)]:
+    for i in [slice(i, i + chunk) for i in range(0, len(x), chunk)]:
         o = f(x[i])
         l = loss((o - out0[i]) * y[i]).sum() / len(x)
         grad += gradient(l, f.parameters())
@@ -166,7 +166,6 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
 
         if torch.isnan(out).any():
             break
-
 
         state = copy.deepcopy((f.state_dict(), optimizer.state_dict(), t))
 
