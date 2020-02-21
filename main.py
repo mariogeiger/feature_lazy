@@ -311,41 +311,40 @@ def init(args):
 
     torch.manual_seed(args.init_seed + hash(args.alpha))
 
-    arch, act_str = args.arch.split('_')
-    if act_str == 'relu':
+    if args.act == 'relu':
         def act(x):
             return 2 ** 0.5 * torch.relu(x)
-    elif act_str == 'tanh':
+    elif args.act == 'tanh':
         act = torch.tanh
-    elif act_str == 'softplus':
+    elif args.act == 'softplus':
         factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
 
         def act(x):
             return torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
-    elif act_str == 'swish':
+    elif args.act == 'swish':
         act = SwishJit()
     else:
         raise ValueError('act not specified')
 
-    if arch == 'fc':
+    if args.arch == 'fc':
         assert args.L is not None
         xtr = xtr.flatten(1)
         xtk = xtk.flatten(1)
         xte = xte.flatten(1)
         f = FC(xtr.size(1), args.h, args.L, act, args.bias)
-    elif arch == 'cv':
+    elif args.arch == 'cv':
         assert args.bias == 0
         f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base,
                fsz=args.cv_fsz, pad=args.cv_pad, stride_first=args.cv_stride_first)
-    elif arch == 'resnet':
+    elif args.arch == 'resnet':
         assert args.bias == 0
         f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle)
-    elif arch == 'mnas':
-        assert act_str == 'swish'
+    elif args.arch == 'mnas':
+        assert args.act == 'swish'
         f = MnasNetLike(xtr.size(1), args.h, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2)
-    elif arch == 'fixed_weights':
+    elif args.arch == 'fixed_weights':
         f = FixedWeights(args.d, args.h, act, args.bias)
-    elif arch == 'fixed_angles':
+    elif args.arch == 'fixed_angles':
         f = FixedAngles(args.d, args.h, act, args.bias)
     else:
         raise ValueError('arch not specified')
@@ -386,6 +385,7 @@ def main():
     parser.add_argument("--whitening", type=int, default=1)
 
     parser.add_argument("--arch", type=str, required=True)
+    parser.add_argument("--act", type=str, required=True)
     parser.add_argument("--bias", type=float, default=0)
     parser.add_argument("--L", type=int)
     parser.add_argument("--h", type=int, required=True)
