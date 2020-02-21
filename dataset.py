@@ -79,6 +79,8 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
     import torchvision
     from itertools import chain
 
+    torch.manual_seed(seed)
+
     transform = torchvision.transforms.ToTensor()
 
     if dataset == "mnist":
@@ -112,12 +114,12 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
         tr = torchvision.datasets.ImageFolder('~/.torchvision/datasets/catdog', transform=transform)
         te = []
     elif dataset in ['stripe', 'sphere']:
-        x = torch.randn(p, d)
+        x = torch.randn(p, d, dtype=torch.float64)
         if dataset == 'stripe':
             y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
         if dataset == 'sphere':
             r = x.norm(dim=1)
-            y = (r < d**0.5)
+            y = (r > d**0.5)
         y = 2 * y - 1
         te = []
         tr = [(x, y.item()) for x, y in zip(x, y)]
@@ -137,7 +139,6 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
 
     sets = [[(x, y) for x, y in dataset if y == i] for i in classes]
 
-    torch.manual_seed(seed)
     sets = [
         [x[i] for i in torch.randperm(len(x))]
         for x in sets
