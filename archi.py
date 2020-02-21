@@ -97,7 +97,7 @@ class FixedAngles(nn.Module):
         d = x.size(1)
         B = self.bias * self.B
         h = len(B)
-        return self.act(x @ (self.r * self.W0.T / d**0.5) + B) @ (self.W / h)
+        return self.act(x @ ((self.r * self.W0).T / d**0.5) + B) @ (self.W / h)
 
 
 class CV(nn.Module):
