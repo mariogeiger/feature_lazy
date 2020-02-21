@@ -8,7 +8,7 @@ from time import perf_counter
 
 import torch
 
-from archi import CV, FC, Wide_ResNet, FixedWeights
+from archi import CV, FC, Wide_ResNet, FixedWeights, FixedAngles
 from dataset import get_binary_dataset
 from dynamics import train_kernel, train_regular
 from kernels import compute_kernels
@@ -345,6 +345,8 @@ def init(args):
         f = MnasNetLike(xtr.size(1), args.h, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2)
     elif arch == 'fixed_weights':
         f = FixedWeights(args.d, args.h, act, args.bias)
+    elif arch == 'fixed_angles':
+        f = FixedAngles(args.d, args.h, act, args.bias)
     else:
         raise ValueError('arch not specified')
 
