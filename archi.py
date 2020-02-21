@@ -23,7 +23,7 @@ class FC(nn.Module):
 
             # next two line are here to avoid memory issue when computing the kernel
             n = max(1, 128 * 256 // hh)
-            W = nn.ParameterList([nn.Parameter(W[j: j+n]) for j in range(0, len(W), n)])
+            W = nn.ParameterList([nn.Parameter(W[j: j + n]) for j in range(0, len(W), n)])
 
             setattr(self, "W{}".format(i), W)
             if bias:
@@ -119,6 +119,7 @@ class conv(nn.Module):
         h = w[0].numel()
         return F.conv2d(x, w / h ** 0.5, self.b, self.stride, self.padding)
 
+
 class wide_basic(nn.Module):
     def __init__(self, in_planes, planes, act, stride=1, mix_angle=45):
         super().__init__()
@@ -141,6 +142,7 @@ class wide_basic(nn.Module):
         out = math.cos(a) * cut + math.sin(a) * out
 
         return out
+
 
 class Wide_ResNet(nn.Module):
     def __init__(self, d, depth, h, act, num_classes, mix_angle=45):

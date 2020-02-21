@@ -110,6 +110,7 @@ class InvertedResidual(nn.Module):
 class Mem:
     def __init__(self, x=None):
         self.x = x
+
     def __call__(self, x=None):
         self.x = x or self.x
         return self.x

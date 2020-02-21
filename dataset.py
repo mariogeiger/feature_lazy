@@ -33,59 +33,49 @@ def pca(x, d, whitening):
     return u
 
 
-def get_binary_pca_dataset(dataset, p, d, whitening, seed=None, device=None):
+# def get_binary_pca_dataset(dataset, p, d, whitening, seed=None, device=None):
+#     if seed is None:
+#         seed = torch.randint(2 ** 32, (), dtype=torch.long).item()
+
+#     x, y = get_normalized_dataset(dataset, seed)
+
+#     x = pca(x, d, whitening).to(device)
+#     y = (2 * (torch.arange(len(y)) % 2) - 1).type(x.dtype).to(device)
+
+#     xtr = x[:p]
+#     xte = x[p:]
+#     ytr = y[:p]
+#     yte = y[p:]
+
+#     return (xtr, ytr), (xte, yte)
+
+
+def get_dataset(dataset, p, d, seed=None, device=None):
     if seed is None:
         seed = torch.randint(2 ** 32, (), dtype=torch.long).item()
 
-    x, y = get_normalized_dataset(dataset, seed)
-
-    x = pca(x, d, whitening).to(device)
-    y = (2 * (torch.arange(len(y)) % 2) - 1).type(x.dtype).to(device)
-
-    xtr = x[:p]
-    xte = x[p:]
-    ytr = y[:p]
-    yte = y[p:]
-
-    return (xtr, ytr), (xte, yte)
-
-
-def get_dataset(dataset, p, seed=None, device=None):
-    if seed is None:
-        seed = torch.randint(2 ** 32, (), dtype=torch.long).item()
-
-    x, y = get_normalized_dataset(dataset, seed)
+    x, y = get_normalized_dataset(dataset, p, d, seed)
 
     x = x.to(device)
     y = y.to(device)
 
-    xtr = x[:p]
-    xte = x[p:]
-    ytr = y[:p]
-    yte = y[p:]
-
-    return (xtr, ytr), (xte, yte)
+    return x, y
 
 
-def get_binary_dataset(dataset, p, seed=None, device=None):
+def get_binary_dataset(dataset, p, d, seed=None, device=None):
     if seed is None:
         seed = torch.randint(2 ** 32, (), dtype=torch.long).item()
 
-    x, y = get_normalized_dataset(dataset, seed)
+    x, y = get_normalized_dataset(dataset, p, d, seed)
 
     x = x.to(device)
     y = (2 * (torch.arange(len(y)) % 2) - 1).type(x.dtype).to(device)
 
-    xtr = x[:p]
-    xte = x[p:]
-    ytr = y[:p]
-    yte = y[p:]
-
-    return (xtr, ytr), (xte, yte)
+    return x, y
 
 
 @functools.lru_cache(maxsize=2)
-def get_normalized_dataset(dataset, seed):
+def get_normalized_dataset(dataset, p=0, d=0, seed=0):
     import torchvision
     from itertools import chain
 
@@ -121,11 +111,21 @@ def get_normalized_dataset(dataset, seed):
     elif dataset == "catdog":
         tr = torchvision.datasets.ImageFolder('~/.torchvision/datasets/catdog', transform=transform)
         te = []
+    elif dataset in ['stripe', 'sphere']:
+        x = torch.randn(p, d)
+        if dataset == 'stripe':
+            y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
+        if dataset == 'sphere':
+            r = x.norm(dim=1)
+            y = (r < d**0.5)
+        y = 2 * y - 1
+        te = []
+        tr = [(x, y.item()) for x, y in zip(x, y)]
     elif dataset == "pat1d":
         from pat1d import gen
         tr = []
         te = []
-        while len(tr) < 100000:
+        while len(tr) < p:
             x, y = gen(70)
             tr.append((x.view(1, -1), y > 0))
     else:
@@ -151,4 +151,9 @@ def get_normalized_dataset(dataset, seed):
 
     y = torch.tensor([y for x, y in dataset], dtype=torch.long)
 
+    if p > 0:
+        assert len(x) >= p
+        x, y = x[:p], y[:p]
+    if d > 0:
+        assert x.flatten(1).shape[1] == d
     return x, y

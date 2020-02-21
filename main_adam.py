@@ -11,6 +11,7 @@ import torch
 from archi import CV, FC, Wide_ResNet
 from dataset import get_binary_dataset, get_binary_pca_dataset
 from dynamics import loglinspace
+from swish import SwishJit
 
 
 class SplitEval(torch.nn.Module):
@@ -113,7 +114,8 @@ def run_regular(args, f0, loss, xtr, ytr, xte, yte):
                 state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
                 state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
 
-            print("[i={d[step]:d} wall={d[wall]:.0f}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]".format(d=state, p=len(j)), flush=True)
+            print(("[i={d[step]:d} wall={d[wall]:.0f}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f}"
+                   + " nd={d[train][nd]}/{p}] [test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]").format(d=state, p=len(j)), flush=True)
 
             dynamics.append(state)
 
@@ -185,15 +187,20 @@ def execute(args):
 
     torch.manual_seed(args.init_seed + hash(args.alpha))
 
-    if not '@' in args.arch:
-        arch, act = args.arch.split('_')
-        if act == 'relu':
-            act = lambda x: 2 ** 0.5 * torch.relu(x)
-        elif act == 'tanh':
+    if '@' not in args.arch:
+        arch, act_str = args.arch.split('_')
+        if act_str == 'relu':
+            def act(x):
+                return 2 ** 0.5 * torch.relu(x)
+        elif act_str == 'tanh':
             act = torch.tanh
-        elif act == 'softplus':
+        elif act_str == 'softplus':
             factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
-            act = lambda x: torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
+
+            def act(x):
+                return torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
+        elif act_str == 'swish':
+            act = SwishJit()
         else:
             raise ValueError('act not specified')
 

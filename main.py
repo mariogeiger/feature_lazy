@@ -9,7 +9,7 @@ from time import perf_counter
 import torch
 
 from archi import CV, FC, Wide_ResNet
-from dataset import get_binary_dataset, get_binary_pca_dataset
+from dataset import get_binary_dataset
 from dynamics import train_kernel, train_regular
 from kernels import compute_kernels
 from mnas import MnasNetLike
@@ -67,7 +67,9 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             'labels': ytr if args.save_outputs else None,
         }
 
-        print("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr}]".format(d=state, ptr=len(xtr)), flush=True)
+        print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}]"
+              + " [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr}]").format(d=state, ptr=len(xtr)), flush=True)
+
         dynamics.append(state)
 
     c = torch.lstsq(otr.view(-1, 1), ktrtr).solution.flatten()
@@ -165,7 +167,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'outputs': ote if args.save_outputs else None,
             'labels': ytej if args.save_outputs else None,
         }
-        print("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]".format(d=state, p=len(j)), flush=True)
+        print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] "
+              + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test aL={d[test][aloss]:.2e} "
+              + "err={d[test][err]:.2f}]").format(d=state, p=len(j)), flush=True)
         dynamics.append(state)
 
         if wall + args.train_time < perf_counter():
@@ -282,15 +286,17 @@ def init(args):
     if args.dtype == 'float32':
         torch.set_default_dtype(torch.float32)
 
-    if args.d is None or args.d == 0:
-        (xtr, ytr), (xte, yte) = get_binary_dataset(args.dataset, args.ptr + args.ptk, args.data_seed, args.device)
-    else:
-        (xtr, ytr), (xte, yte) = get_binary_pca_dataset(args.dataset, args.ptr + args.ptk, args.d, args.whitening, args.data_seed, args.device)
+    # if args.d is None or args.d == 0:
+    x, y = get_binary_dataset(args.dataset, args.ptr + args.ptk + args.pte, args.d, args.data_seed, args.device)
+    # else:
+    #     (xtr, ytr), (xte, yte) = get_binary_pca_dataset(args.dataset, args.ptr + args.ptk, args.d, args.whitening, args.data_seed, args.device)
 
-    xtk = xtr[args.ptr:]
-    ytk = ytr[args.ptr:]
-    xtr = xtr[:args.ptr]
-    ytr = ytr[:args.ptr]
+    xtr = x[:args.ptr]
+    ytr = y[:args.ptr]
+    xtk = x[args.ptr: args.ptr + args.ptk]
+    ytk = y[args.ptr: args.ptr + args.ptk]
+    xte = x[args.ptr + args.ptk:]
+    yte = y[args.ptr + args.ptk:]
 
     xtr = xtr.type(torch.get_default_dtype())
     xtk = xtk.type(torch.get_default_dtype())
@@ -305,15 +311,18 @@ def init(args):
 
     torch.manual_seed(args.init_seed + hash(args.alpha))
 
-    arch, act = args.arch.split('_')
-    if act == 'relu':
-        act = lambda x: 2 ** 0.5 * torch.relu(x)
-    elif act == 'tanh':
+    arch, act_str = args.arch.split('_')
+    if act_str == 'relu':
+        def act(x):
+            return 2 ** 0.5 * torch.relu(x)
+    elif act_str == 'tanh':
         act = torch.tanh
-    elif act == 'softplus':
+    elif act_str == 'softplus':
         factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
-        act = lambda x: torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
-    elif act == 'swish':
+
+        def act(x):
+            return torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
+    elif act_str == 'swish':
         act = SwishJit()
     else:
         raise ValueError('act not specified')
@@ -326,11 +335,13 @@ def init(args):
         f = FC(xtr.size(1), args.h, args.L, act, args.bias).to(args.device)
     elif arch == 'cv':
         assert args.bias == 0
-        f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base, fsz=args.cv_fsz, pad=args.cv_pad, stride_first=args.cv_stride_first).to(args.device)
+        f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base,
+               fsz=args.cv_fsz, pad=args.cv_pad, stride_first=args.cv_stride_first).to(args.device)
     elif arch == 'resnet':
         assert args.bias == 0
         f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle).to(args.device)
     elif arch == 'mnas':
+        assert act_str == 'swish'
         f = MnasNetLike(xtr.size(1), args.h, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2).to(args.device)
     else:
         raise ValueError('arch not specified')
