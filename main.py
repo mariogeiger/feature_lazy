@@ -229,8 +229,11 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         del init_kernel
 
     if args.regular == 1:
-        it = iter(args.running_kernel)
-        al = next(it)
+        if args.running_kernel:
+            it = iter(args.running_kernel)
+            al = next(it)
+        else:
+            al = -1
         t = perf_counter()
         for f, out, done in run_regular(args, f0, xtr, ytr, xte, yte):
             run['regular'] = out
@@ -400,7 +403,7 @@ def main():
 
     parser.add_argument("--init_kernel", type=int, required=True)
     parser.add_argument("--regular", type=int, default=1)
-    parser.add_argument('--running_kernel', nargs='+', type=float, default=[])
+    parser.add_argument('--running_kernel', nargs='+', type=float)
     parser.add_argument("--final_kernel", type=int, required=True)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
