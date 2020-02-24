@@ -400,7 +400,7 @@ def main():
 
     parser.add_argument("--init_kernel", type=int, required=True)
     parser.add_argument("--regular", type=int, default=1)
-    parser.add_argument('--running_kernel', nargs='+', type=float)
+    parser.add_argument('--running_kernel', nargs='+', type=float, default=[])
     parser.add_argument("--final_kernel", type=int, required=True)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
