@@ -6,6 +6,7 @@
 - split in train and test set in an equilibrated way (same amount of each classes)
 """
 import functools
+from itertools import chain
 
 import torch
 
@@ -77,7 +78,6 @@ def get_binary_dataset(dataset, p, d, seed=None, device=None):
 @functools.lru_cache(maxsize=2)
 def get_normalized_dataset(dataset, p=0, d=0, seed=0):
     import torchvision
-    from itertools import chain
 
     torch.manual_seed(seed)
 
@@ -86,33 +86,52 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
     if dataset == "mnist":
         tr = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=False, transform=transform)
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "kmnist":
         tr = torchvision.datasets.KMNIST('~/.torchvision/datasets/KMNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.KMNIST('~/.torchvision/datasets/KMNIST', train=False, transform=transform)
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "emnist-letters":
         tr = torchvision.datasets.EMNIST('~/.torchvision/datasets/EMNIST', train=True, download=True, transform=transform, split='letters')
         te = torchvision.datasets.EMNIST('~/.torchvision/datasets/EMNIST', train=False, transform=transform, split='letters')
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "fashion":
         tr = torchvision.datasets.FashionMNIST('~/.torchvision/datasets/FashionMNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.FashionMNIST('~/.torchvision/datasets/FashionMNIST', train=False, transform=transform)
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "cifar10":
         tr = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform)
         te = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform)
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "cifar_catdog":
         tr = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform) if y in [3, 5]]
         te = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform) if y in [3, 5]]
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "cifar_shipbird":
         tr = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform) if y in [8, 2]]
         te = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform) if y in [8, 2]]
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "cifar_catplane":
         tr = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform) if y in [3, 0]]
         te = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform) if y in [3, 0]]
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "cifar_animal":
         tr = [(x, 0 if y in [0, 1, 8, 9] else 1) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform)]
         te = [(x, 0 if y in [0, 1, 8, 9] else 1) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform)]
+        x, y = dataset_to_tensors(list(tr) + list(te))
+        x = center_normalize(x)
     elif dataset == "catdog":
         tr = torchvision.datasets.ImageFolder('~/.torchvision/datasets/catdog', transform=transform)
-        te = []
+        x, y = dataset_to_tensors(list(tr))
+        x = center_normalize(x)
     elif dataset in ['stripe', 'sphere']:
         x = torch.randn(2 * p, d, dtype=torch.float64)
         if dataset == 'stripe':
@@ -121,19 +140,27 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
             r = x.norm(dim=1)
             y = (r > d**0.5)
         y = 2 * y - 1
-        te = []
         tr = [(x, y.item()) for x, y in zip(x, y)]
+        x, y = dataset_to_tensors(tr)
     elif dataset == "pat1d":
         from pat1d import gen
         tr = []
-        te = []
         while len(tr) < 2 * p:
             x, y = gen(70)
             tr.append((x.view(1, -1), y > 0))
+        x, y = dataset_to_tensors(tr)
     else:
         raise ValueError("unknown dataset")
 
-    dataset = list(tr) + list(te)
+    if p > 0:
+        assert len(x) >= p, (x.shape, p)
+        x, y = x[:p], y[:p]
+    if d > 0:
+        assert x.flatten(1).shape[1] == d
+    return x, y
+
+
+def dataset_to_tensors(dataset):
     dataset = [(x.type(torch.float64), int(y)) for x, y in dataset]
     classes = sorted({y for x, y in dataset})
 
@@ -147,14 +174,11 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
     dataset = list(chain(*zip(*sets)))
 
     x = torch.stack([x for x, y in dataset])
+    y = torch.tensor([y for x, y in dataset], dtype=torch.long)
+    return x, y
+
+
+def center_normalize(x):
     x = x - x.mean(0)
     x = (x[0].numel() ** 0.5) * x / x.flatten(1).norm(dim=1).view(-1, *(1,) * (x.dim() - 1))
-
-    y = torch.tensor([y for x, y in dataset], dtype=torch.long)
-
-    if p > 0:
-        assert len(x) >= p, (x.shape, p)
-        x, y = x[:p], y[:p]
-    if d > 0:
-        assert x.flatten(1).shape[1] == d
-    return x, y
+    return x
