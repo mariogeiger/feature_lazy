@@ -122,9 +122,10 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         otr0 = torch.zeros_like(otr0)
         ote0 = torch.zeros_like(ote0)
 
-    j = torch.randperm(min(len(xte), len(xtr)))[:10 * args.chunk].sort().values
-    ytrj = ytr[j]
-    ytej = yte[j]
+    jtr = torch.randperm(len(xtr))[:10 * args.chunk].sort().values
+    jte = torch.randperm(len(xte))[:10 * args.chunk].sort().values
+    ytrj = ytr[jtr]
+    ytej = yte[jte]
 
     tau = args.tau_over_h * args.h
     if args.tau_alpha_crit is not None:
@@ -136,8 +137,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     dynamics = []
     for f, state, done in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
         with torch.no_grad():
-            otr = f(xtr[j]) - otr0[j]
-            ote = f(xte[j]) - ote0[j]
+            otr = f(xtr[jtr]) - otr0[jtr]
+            ote = f(xte[jte]) - ote0[jte]
 
         state['wall'] = perf_counter() - wall
         state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
@@ -160,13 +161,14 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     x['train']['labels'] = None
                     x['test']['outputs'] = None
                     x['test']['labels'] = None
+
         state['train'] = {
             'loss': loss_func(args, otr * ytrj).mean().item(),
             'aloss': args.alpha * loss_func(args, otr * ytrj).mean().item(),
             'err': (otr * ytrj <= 0).double().mean().item(),
             'nd': (args.alpha * otr * ytrj < 1).long().sum().item(),
             'dfnorm': otr.pow(2).mean().sqrt(),
-            'fnorm': (otr + otr0[j]).pow(2).mean().sqrt(),
+            'fnorm': (otr + otr0[jtr]).pow(2).mean().sqrt(),
             'outputs': otr if save_outputs else None,
             'labels': ytrj if save_outputs else None,
         }
@@ -176,13 +178,13 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'err': test_err,
             'nd': (args.alpha * ote * ytej < 1).long().sum().item(),
             'dfnorm': ote.pow(2).mean().sqrt(),
-            'fnorm': (ote + ote0[j]).pow(2).mean().sqrt(),
+            'fnorm': (ote + ote0[jte]).pow(2).mean().sqrt(),
             'outputs': ote if save_outputs else None,
             'labels': ytej if save_outputs else None,
         }
         print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] "
               + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test aL={d[test][aloss]:.2e} "
-              + "err={d[test][err]:.2f}]").format(d=state, p=len(j)), flush=True)
+              + "err={d[test][err]:.2f}]").format(d=state, p=len(ytrj)), flush=True)
         dynamics.append(state)
 
         if wall + args.train_time < perf_counter():
