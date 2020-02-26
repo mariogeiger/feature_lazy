@@ -143,12 +143,23 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
         state['dnorm'] = sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item()
 
-        if args.arch.split('_')[0] == 'fc':
+        if args.arch == 'fc':
             def getw(f, i):
                 return torch.cat(list(getattr(f.f, "W{}".format(i))))
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
             state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
 
+        test_err = (ote * ytej <= 0).double().mean().item()
+        save_outputs = args.save_outputs
+        if test_err < best_test_error:
+            best_test_error = test_err
+            save_outputs = True
+            if not args.save_outputs:
+                for x in dynamics:
+                    x['train']['outputs'] = None
+                    x['train']['labels'] = None
+                    x['test']['outputs'] = None
+                    x['test']['labels'] = None
         state['train'] = {
             'loss': loss_func(args, otr * ytrj).mean().item(),
             'aloss': args.alpha * loss_func(args, otr * ytrj).mean().item(),
@@ -156,22 +167,13 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'nd': (args.alpha * otr * ytrj < 1).long().sum().item(),
             'dfnorm': otr.pow(2).mean().sqrt(),
             'fnorm': (otr + otr0[j]).pow(2).mean().sqrt(),
-            'outputs': otr if args.save_outputs else None,
-            'labels': ytrj if args.save_outputs else None,
+            'outputs': otr if save_outputs else None,
+            'labels': ytrj if save_outputs else None,
         }
-        err = (ote * ytej <= 0).double().mean().item()
-        save_outputs = args.save_outputs
-        if err < best_test_error:
-            best_test_error = err
-            save_outputs = True
-            if not args.save_outputs:
-                for x in dynamics:
-                    x['test']['outputs'] = None
-                    x['test']['labels'] = None
         state['test'] = {
             'loss': loss_func(args, ote * ytej).mean().item(),
             'aloss': args.alpha * loss_func(args, ote * ytej).mean().item(),
-            'err': err,
+            'err': test_err,
             'nd': (args.alpha * ote * ytej < 1).long().sum().item(),
             'dfnorm': ote.pow(2).mean().sqrt(),
             'fnorm': (ote + ote0[j]).pow(2).mean().sqrt(),
