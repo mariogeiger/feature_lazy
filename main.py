@@ -226,13 +226,11 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
     if args.init_kernel == 1:
         run['init_kernel'] = run_kernel(args, *init_kernel, f0, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
-        if args.ptr < args.ptk:
-            ktktk, ktetk, ktete = init_kernel
-            ktktk = ktktk[:len(xtr)][:, :len(xtr)]
-            ktetk = ktetk[:, :len(xtr)]
-            run['init_kernel_ptr'] = run_kernel(args, ktktk, ktetk, ktete, f0, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)])
-        else:
-            run['init_kernel_ptr'] = run['init_kernel']
+
+    if args.init_kernel_ptr == 1:
+        init_kernel_ptr = compute_kernels(f0, xtr, xte[:len(xtk)])
+        run['init_kernel_ptr'] = run_kernel(args, *init_kernel_ptr, f0, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)])
+        del init_kernel_ptr
 
     if args.delta_kernel == 1:
         init_kernel = (init_kernel[0].cpu(), init_kernel[2].cpu())
@@ -271,16 +269,21 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
         if args.delta_kernel == 1 or args.final_kernel == 1:
             final_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
-
-        if args.final_kernel == 1:
-            run['final_kernel'] = run_kernel(args, *final_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
-            if args.ptr < args.ptk:
+            if args.final_kernel_ptr == 1:
                 ktktk, ktetk, ktete = final_kernel
                 ktktk = ktktk[:len(xtr)][:, :len(xtr)]
                 ktetk = ktetk[:, :len(xtr)]
-                run['final_kernel_ptr'] = run_kernel(args, ktktk, ktetk, ktete, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)])
-            else:
-                run['final_kernel_ptr'] = run['final_kernel']
+                final_kernel_ptr = (ktktk, ktetk, ktete)
+
+        elif args.final_kernel_ptr == 1:
+            final_kernel_ptr = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
+
+        if args.final_kernel == 1:
+            run['final_kernel'] = run_kernel(args, *final_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
+
+        if args.final_kernel_ptr == 1:
+            assert len(xtk) >= len(xtr)
+            run['final_kernel_ptr'] = run_kernel(args, *final_kernel_ptr, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)])
 
         if args.delta_kernel == 1:
             final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
@@ -412,10 +415,12 @@ def main():
     parser.add_argument("--cv_pad", type=int, default=1)
     parser.add_argument("--cv_stride_first", type=int, default=1)
 
-    parser.add_argument("--init_kernel", type=int, required=True)
+    parser.add_argument("--init_kernel", type=int, default=0)
+    parser.add_argument("--init_kernel_ptr", type=int, default=0)
     parser.add_argument("--regular", type=int, default=1)
     parser.add_argument('--running_kernel', nargs='+', type=float)
-    parser.add_argument("--final_kernel", type=int, required=True)
+    parser.add_argument("--final_kernel", type=int, default=0)
+    parser.add_argument("--final_kernel_ptr", type=int, default=0)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
     parser.add_argument("--save_outputs", type=int, default=0)
