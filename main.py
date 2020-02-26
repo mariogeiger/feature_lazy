@@ -122,13 +122,15 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         otr0 = torch.zeros_like(otr0)
         ote0 = torch.zeros_like(ote0)
 
-    j = torch.randperm(min(len(xte), len(xtr)))[:10 * args.chunk]
+    j = torch.randperm(min(len(xte), len(xtr)))[:10 * args.chunk].sort().values
     ytrj = ytr[j]
     ytej = yte[j]
 
     tau = args.tau_over_h * args.h
     if args.tau_alpha_crit is not None:
         tau *= min(1, args.tau_alpha_crit / args.alpha)
+
+    best_test_error = 1
 
     wall = perf_counter()
     dynamics = []
@@ -157,15 +159,24 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'outputs': otr if args.save_outputs else None,
             'labels': ytrj if args.save_outputs else None,
         }
+        err = (ote * yte[j] <= 0).double().mean().item()
+        save_outputs = args.save_outputs
+        if err < best_test_error:
+            best_test_error = err
+            save_outputs = True
+            if not args.save_outputs:
+                for x in dynamics:
+                    x['test']['outputs'] = None
+                    x['test']['labels'] = None
         state['test'] = {
             'loss': loss_func(args, ote * ytej).mean().item(),
             'aloss': args.alpha * loss_func(args, ote * ytej).mean().item(),
-            'err': (ote * yte[j] <= 0).double().mean().item(),
+            'err': err,
             'nd': (args.alpha * ote * yte[j] < 1).long().sum().item(),
             'dfnorm': ote.pow(2).mean().sqrt(),
             'fnorm': (ote + ote0[j]).pow(2).mean().sqrt(),
-            'outputs': ote if args.save_outputs else None,
-            'labels': ytej if args.save_outputs else None,
+            'outputs': ote if save_outputs else None,
+            'labels': ytej if save_outputs else None,
         }
         print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] "
               + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p}] [test aL={d[test][aloss]:.2e} "
