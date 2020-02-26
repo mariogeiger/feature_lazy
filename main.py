@@ -152,14 +152,14 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         state['train'] = {
             'loss': loss_func(args, otr * ytrj).mean().item(),
             'aloss': args.alpha * loss_func(args, otr * ytrj).mean().item(),
-            'err': (otr * ytr[j] <= 0).double().mean().item(),
-            'nd': (args.alpha * otr * ytr[j] < 1).long().sum().item(),
+            'err': (otr * ytrj <= 0).double().mean().item(),
+            'nd': (args.alpha * otr * ytrj < 1).long().sum().item(),
             'dfnorm': otr.pow(2).mean().sqrt(),
             'fnorm': (otr + otr0[j]).pow(2).mean().sqrt(),
             'outputs': otr if args.save_outputs else None,
             'labels': ytrj if args.save_outputs else None,
         }
-        err = (ote * yte[j] <= 0).double().mean().item()
+        err = (ote * ytej <= 0).double().mean().item()
         save_outputs = args.save_outputs
         if err < best_test_error:
             best_test_error = err
@@ -172,7 +172,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'loss': loss_func(args, ote * ytej).mean().item(),
             'aloss': args.alpha * loss_func(args, ote * ytej).mean().item(),
             'err': err,
-            'nd': (args.alpha * ote * yte[j] < 1).long().sum().item(),
+            'nd': (args.alpha * ote * ytej < 1).long().sum().item(),
             'dfnorm': ote.pow(2).mean().sqrt(),
             'fnorm': (ote + ote0[j]).pow(2).mean().sqrt(),
             'outputs': ote if save_outputs else None,
