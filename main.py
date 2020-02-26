@@ -62,7 +62,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
         print("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}]".format(d=state), flush=True)
         dynamics.append(state)
 
-    c = torch.gels(otr.view(-1, 1), ktrtr)[0].flatten()
+    c = torch.lstsq(otr.view(-1, 1), ktrtr).solution.flatten()
 
     if len(xte) > len(xtr):
         from hessian import gradient
