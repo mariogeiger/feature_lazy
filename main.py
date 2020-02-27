@@ -450,7 +450,7 @@ def main():
         args.pte = args.ptr
 
     if args.chunk is None:
-        args.chunk = args.ptr
+        args.chunk = max(args.ptr, args.pte, args.ptk)
 
     torch.save(args, args.pickle)
     saved = False
