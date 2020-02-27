@@ -132,7 +132,7 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
         tr = torchvision.datasets.ImageFolder('~/.torchvision/datasets/catdog', transform=transform)
         x, y = dataset_to_tensors(list(tr))
         x = center_normalize(x)
-    elif dataset in ['stripe', 'sphere' , 'xor']:
+    elif dataset in ['stripe', 'sphere' , 'xnor']:
         x = torch.randn(2 * p, d, dtype=torch.float64)
         if dataset == 'stripe':
             y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
