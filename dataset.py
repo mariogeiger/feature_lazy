@@ -140,8 +140,9 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
             r = x.norm(dim=1)
             y = (r > d**0.5)
         if dataset == 'cross':
-            threshold_x = 0.0  ; threshold_y = 0.0 
-            y = (x[:, 0] > threshold_x) * (x[:, 1] > threshold_y ) + (x[:, 0] < threshold_x) * (x[:, 1] < threshold_y )
+            threshold_x = 0.0
+            threshold_y = 0.0 
+            y = (x[:, 0] > threshold_x) * (x[:, 1] > threshold_y) + (x[:, 0] < threshold_x) * (x[:, 1] < threshold_y)
         y = 2 * y - 1
         tr = [(x, y.item()) for x, y in zip(x, y)]
         x, y = dataset_to_tensors(tr)
