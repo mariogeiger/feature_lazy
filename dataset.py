@@ -155,7 +155,7 @@ def get_normalized_dataset(dataset, p=0, d=0, seed=0):
     if p > 0:
         assert len(x) >= p, (x.shape, p)
         x, y = x[:p], y[:p]
-    if d > 0:
+    if d is not None and d > 0:
         assert x.flatten(1).shape[1] == d
     return x, y
 
