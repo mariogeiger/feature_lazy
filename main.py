@@ -8,12 +8,12 @@ from time import perf_counter
 
 import torch
 
-from archi import CV, FC, Wide_ResNet, FixedWeights, FixedAngles
+from arch import CV, FC, FixedAngles, FixedWeights, Wide_ResNet
+from arch.mnas import MnasNetLike
+from arch.swish import swish
 from dataset import get_binary_dataset
 from dynamics import train_kernel, train_regular
 from kernels import compute_kernels
-from mnas import MnasNetLike
-from swish import SwishJit
 
 
 def loss_func(args, fy):
@@ -330,22 +330,28 @@ def init(args):
     xte = xte[:args.pte]
     yte = yte[:args.pte]
 
-    torch.manual_seed(args.init_seed + hash(args.alpha))
+    torch.manual_seed(0)
 
     if args.act == 'relu':
         def act(x):
-            return 2 ** 0.5 * torch.relu(x)
+            return torch.relu(x).mul(2 ** 0.5)
     elif args.act == 'tanh':
-        act = torch.tanh
+        def act(x):
+            return torch.tanh(x).mul(1.5927116424039378)
     elif args.act == 'softplus':
         factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.spbeta).pow(2).mean().rsqrt().item()
 
         def act(x):
             return torch.nn.functional.softplus(x, beta=args.spbeta).mul(factor)
     elif args.act == 'swish':
-        act = SwishJit()
+        act = swish
     else:
         raise ValueError('act not specified')
+
+    _d = abs(act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item() - 1)
+    assert _d < 1e-2, _d
+
+    torch.manual_seed(args.init_seed + hash(args.alpha) + args.ptr)
 
     if args.arch == 'fc':
         assert args.L is not None

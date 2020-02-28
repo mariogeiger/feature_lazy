@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from swish import SwishJit
+from .swish import Swish
 
 
 class NTKLinear(nn.Module):
@@ -54,7 +54,7 @@ class NTKConv(nn.Module):
 
 class DepthwiseSeparableConv(nn.Module):
     """ DepthwiseSeparable block """
-    def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=SwishJit, dim=2):
+    def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=Swish, dim=2):
         super().__init__()
         self.conv_dw = NTKConv(in_chs, in_chs, k, s, p, g=in_chs, bias=False, dim=dim)
         self.act1 = act()
@@ -72,7 +72,7 @@ class DepthwiseSeparableConv(nn.Module):
 
 class InvertedResidual(nn.Module):
     """ Inverted residual block """
-    def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=SwishJit, noskip=False, exp_ratio=6.0, dim=2):
+    def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=Swish, noskip=False, exp_ratio=6.0, dim=2):
         super().__init__()
         mid_chs = round(in_chs * exp_ratio)
         self.has_residual = (in_chs == out_chs and s == 1) and not noskip
@@ -122,7 +122,7 @@ class MnasNetLike(nn.Module):
         c = Mem()
 
         self.conv_stem = NTKConv(c(d), c(round(4 * h)), k=5, s=2, p=2, bias=False, dim=dim)  # 16x16
-        self.act1 = SwishJit()
+        self.act1 = Swish()
 
         self.blocks = nn.Sequential(
             DepthwiseSeparableConv(c(), c(round(2 * h)), k=5, s=1, p=2, dim=dim),
@@ -133,7 +133,7 @@ class MnasNetLike(nn.Module):
                 self.blocks.add_module(f"ir{i}_{j}", InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0, dim=dim))
 
         self.conv_head = NTKConv(c(), c(round(20 * h)), k=1, s=1, bias=False, dim=dim)
-        self.act2 = SwishJit()
+        self.act2 = Swish()
 
         if dim == 1:
             self.global_pool = nn.AdaptiveAvgPool1d(1)
