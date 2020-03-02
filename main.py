@@ -19,16 +19,16 @@ from kernels import compute_kernels
 def loss_func(args, fy):
     if args.loss == 'softhinge':
         sp = partial(torch.nn.functional.softplus, beta=args.loss_beta)
-        return sp(args.lossmargin - args.alpha * fy) / args.alpha
+        return sp(args.loss_margin - args.alpha * fy) / args.alpha
     if args.loss == 'qhinge':
-        return 0.5 * (args.lossmargin - args.alpha * fy).relu().pow(2) / args.alpha
+        return 0.5 * (args.loss_margin - args.alpha * fy).relu().pow(2) / args.alpha
 
 
 def loss_func_prime(args, fy):
     if args.loss == 'softhinge':
-        return -torch.sigmoid(args.loss_beta * (args.lossmargin - args.alpha * fy)).mul(args.loss_beta)
+        return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * fy)).mul(args.loss_beta)
     if args.loss == 'qhinge':
-        return -(args.lossmargin - args.alpha * fy).relu()
+        return -(args.loss_margin - args.alpha * fy).relu()
 
 
 class SplitEval(torch.nn.Module):
