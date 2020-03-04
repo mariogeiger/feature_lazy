@@ -57,7 +57,7 @@ def get_dataset(dataset, ps, seeds, d, device=None, dtype=None):
     outs = []
     for x, y in sets:
         x = x.to(device=device, dtype=dtype)
-        y = y.to(device=device, dtype=dtype)
+        y = y.to(device=device, dtype=torch.long)
         outs += [(x, y)]
 
     return outs

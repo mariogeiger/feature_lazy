@@ -15,7 +15,7 @@ from dynamics import train_regular
 
 def loss_func(args, f, y):
     if args.loss == 'crossentropy':
-        return torch.nn.functional.cross_entropy(args.alpha * f, y) / args.alpha
+        return torch.nn.functional.cross_entropy(args.alpha * f, y, reduction='none') / args.alpha
 
 
 class SplitEval(torch.nn.Module):
