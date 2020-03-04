@@ -282,7 +282,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             al = next(it)
         else:
             al = -1
-        t = perf_counter()
+        wall = perf_counter()
         for f, out in run_regular(args, f0, xtr, ytr, xte, yte):
             run['regular'] = out
             if out['dynamics'][-1]['train']['aloss'] < al * out['dynamics'][0]['train']['aloss']:
@@ -302,8 +302,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     out['dynamics'][-1]['kernel_ptr'] = out['dynamics'][-1]['kernel']
                 out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
 
-            if perf_counter() - t > 120:
-                t = perf_counter()
+            if perf_counter() - wall > 120:
+                wall = perf_counter()
                 yield run
         yield run
 

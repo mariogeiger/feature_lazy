@@ -144,7 +144,7 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
             assert checkpoint > step
             save = True
 
-        if (alpha * (out - out0) * y > margin).all():
+        if y.dtype == out.dtype and (alpha * (out - out0) * y).min() > margin:
             margin += 0.5
             save = True
 
