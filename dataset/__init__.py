@@ -205,6 +205,9 @@ def random_split(x, y, ps, seeds, classes):
 
     xs = [x[y == i] for i in classes]
 
+    ps = list(ps)
+    seeds = list(seeds)
+
     p = ps.pop(0)
     seed = seeds.pop(0)
 
