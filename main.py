@@ -380,7 +380,7 @@ def init(args):
         xtr = xtr.flatten(1)
         xtk = xtk.flatten(1)
         xte = xte.flatten(1)
-        f = FC(xtr.size(1), args.h, args.L, act, args.bias)
+        f = FC(xtr.size(1), args.h, 1, args.L, act, args.bias)
     elif args.arch == 'cv':
         assert args.bias == 0
         f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base,

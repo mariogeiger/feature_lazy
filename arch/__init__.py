@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 
 class FC(nn.Module):
-    def __init__(self, d, h, L, act, bias=False):
+    def __init__(self, d, h, c, L, act, bias=False):
         super().__init__()
 
         hh = d
@@ -30,9 +30,9 @@ class FC(nn.Module):
                 self.register_parameter("B{}".format(i), nn.Parameter(torch.zeros(h)))
             hh = h
 
-        self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(1, hh)))
+        self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(c, hh)))
         if bias:
-            self.register_parameter("B{}".format(L), nn.Parameter(torch.zeros(1)))
+            self.register_parameter("B{}".format(L), nn.Parameter(torch.zeros(c)))
 
         self.L = L
         self.act = act
@@ -58,7 +58,9 @@ class FC(nn.Module):
             else:
                 x = x @ (W.t() / h) + B
 
-        return x.view(-1)
+        if x.shape[1] == 1:
+            return x.view(-1)
+        return x
 
 
 class FixedWeights(nn.Module):

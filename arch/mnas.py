@@ -1,10 +1,4 @@
 # pylint: disable=arguments-differ, no-member, missing-docstring, invalid-name, line-too-long
-"""
-Defines three architectures:
-- Fully connecetd `FC`
-- Convolutional `CV`
-- And a resnet `Wide_ResNet`
-"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
