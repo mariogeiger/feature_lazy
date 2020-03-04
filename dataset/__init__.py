@@ -51,16 +51,16 @@ def pca(x, d, whitening):
 #     return (xtr, ytr), (xte, yte)
 
 
-# def get_dataset(dataset, p, d, seed=None, device=None):
-#     if seed is None:
-#         seed = torch.randint(2 ** 32, (), dtype=torch.long).item()
+def get_dataset(dataset, ps, seeds, d, device=None, dtype=None):
+    sets = get_normalized_dataset(dataset, ps, seeds, d)
 
-#     x, y = get_normalized_dataset(dataset, p, d, seed)
+    outs = []
+    for x, y in sets:
+        x = x.to(device=device, dtype=dtype)
+        y = y.to(device=device, dtype=dtype)
+        outs += [(x, y)]
 
-#     x = x.to(device)
-#     y = y.to(device)
-
-#     return x, y
+    return outs
 
 
 def get_binary_dataset(dataset, ps, seeds, d, device=None, dtype=None):
