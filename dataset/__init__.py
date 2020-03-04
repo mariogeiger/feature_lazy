@@ -68,6 +68,7 @@ def get_binary_dataset(dataset, ps, seeds, d, device=None, dtype=None):
 
     outs = []
     for x, y in sets:
+        assert len(y.unique()) % 2 == 0
         x = x.to(device=device, dtype=dtype)
         y = (2 * (torch.arange(len(y)) % 2) - 1).type(x.dtype).to(device)
         outs += [(x, y)]
