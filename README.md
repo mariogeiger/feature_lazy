@@ -7,7 +7,7 @@ dependancies:
 
 examples:
 ```
-python -m grid F10k3L --n 1 "python main.py --device cpu --train_time 18000 --data_seed 0 --batch_seed 0 --init_kernel 0 --final_kernel 0 --delta_kernel 0 --arch fc --act swish --L 3 --dataset fashion --ptr 10000 --pte 50000 --tau_alpha_crit 1e3 --tau_over_h 1e-3" --init_seed 0 1 2 3 4 5 6 7 8 9 --alpha 1e-4 1e-2 1e0 1e2 1e4 1e6 --h:int 100 150
+python -m grid F10k3L --n 1 "python main.py --device cpu --train_time 18000 --seed_trainset 0 --seed_testset 0 --arch fc --act swish --L 3 --dataset fashion --ptr 10000 --pte 50000 --tau_alpha_crit 1e3 --tau_over_h 1e-3" --seed_init 0 1 2 3 4 5 6 7 8 9 --alpha 1e-4 1e-2 1e0 1e2 1e4 1e6 --h:int 100 150
 ```
 
 how to read the output file:

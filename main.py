@@ -343,28 +343,14 @@ def init(args):
     if args.dtype == 'float32':
         torch.set_default_dtype(torch.float32)
 
-    # if args.d is None or args.d == 0:
-    x, y = get_binary_dataset(args.dataset, args.ptr + args.ptk + args.pte, args.d, args.data_seed, args.device)
-    # else:
-    #     (xtr, ytr), (xte, yte) = get_binary_pca_dataset(args.dataset, args.ptr + args.ptk, args.d, args.whitening, args.data_seed, args.device)
-
-    xtr = x[:args.ptr]
-    ytr = y[:args.ptr]
-    xtk = x[args.ptr: args.ptr + args.ptk]
-    ytk = y[args.ptr: args.ptr + args.ptk]
-    xte = x[args.ptr + args.ptk:]
-    yte = y[args.ptr + args.ptk:]
-
-    xtr = xtr.type(torch.get_default_dtype())
-    xtk = xtk.type(torch.get_default_dtype())
-    xte = xte.type(torch.get_default_dtype())
-    ytr = ytr.type(torch.get_default_dtype())
-    yte = yte.type(torch.get_default_dtype())
-    ytk = ytk.type(torch.get_default_dtype())
-
-    assert len(xte) >= args.pte
-    xte = xte[:args.pte]
-    yte = yte[:args.pte]
+    [(xte, yte), (xtk, ytk), (xtr, ytr)] = get_binary_dataset(
+        args.dataset,
+        [args.pte, args.ptk, args.ptr],
+        [args.seed_testset, args.seed_kernelset, args.seed_trainset],
+        args.d,
+        args.device,
+        torch.get_default_dtype()
+    )
 
     torch.manual_seed(0)
 
@@ -387,7 +373,7 @@ def init(args):
     _d = abs(act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item() - 1)
     assert _d < 1e-2, _d
 
-    torch.manual_seed(args.init_seed + hash(args.alpha) + args.ptr)
+    torch.manual_seed(args.seed_init + hash(args.alpha) + args.ptr)
 
     if args.arch == 'fc':
         assert args.L is not None
@@ -421,7 +407,7 @@ def init(args):
 def execute(args):
     f, xtr, ytr, xtk, ytk, xte, yte = init(args)
 
-    torch.manual_seed(args.batch_seed)
+    torch.manual_seed(0)
     for run in run_exp(args, f, xtr, ytr, xtk, ytk, xte, yte):
         yield run
 
@@ -436,9 +422,10 @@ def main():
     parser.add_argument("--device", type=str, default='cuda')
     parser.add_argument("--dtype", type=str, default='float64')
 
-    parser.add_argument("--init_seed", type=int, required=True)
-    parser.add_argument("--data_seed", type=int, required=True)
-    parser.add_argument("--batch_seed", type=int, required=True)
+    parser.add_argument("--seed_init", type=int, default=0)
+    parser.add_argument("--seed_testset", type=int, default=0, help="determines the testset, will affect the kernelset and trainset as well")
+    parser.add_argument("--seed_kernelset", type=int, default=0, help="determines the kernelset, will affect the trainset as well")
+    parser.add_argument("--seed_trainset", type=int, default=0, help="determines the trainset")
 
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
