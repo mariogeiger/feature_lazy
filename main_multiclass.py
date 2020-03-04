@@ -257,7 +257,7 @@ def main():
     parser.add_argument("--max_dgrad", type=float, default=1e-4)
     parser.add_argument("--max_dout", type=float, default=1e-1)
 
-    parser.add_argument("--loss", type=str, default="softhinge")
+    parser.add_argument("--loss", type=str, default="crossentropy")
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
 
