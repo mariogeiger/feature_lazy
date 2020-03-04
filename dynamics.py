@@ -107,7 +107,7 @@ def output_gradient(f, loss, x, y, out0, chunk):
     grad = 0
     for i in [slice(i, i + chunk) for i in range(0, len(x), chunk)]:
         o = f(x[i])
-        l = loss((o - out0[i]) * y[i]).sum() / len(x)
+        l = loss(o - out0[i], y[i]).sum() / len(x)
         grad += gradient(l, f.parameters())
         out.append(o)
     return torch.cat(out), grad
@@ -212,7 +212,7 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
     current_dt = 0
     margin = 0
 
-    lprim = loss_prim(otr * ytr) * ytr
+    lprim = loss_prim(otr, ytr)
     grad = ktrtr @ lprim / len(ytr)
     dgrad, dout = 0, 0
 
@@ -266,7 +266,7 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
             t += dt
             current_dt = dt
 
-            lprim = loss_prim(otr * ytr) * ytr
+            lprim = loss_prim(otr, ytr)
             new_grad = ktrtr @ lprim / len(ytr)
 
             dout = velo.mul(dt * alpha).abs().max().item()

@@ -16,19 +16,19 @@ from dynamics import train_kernel, train_regular
 from kernels import compute_kernels
 
 
-def loss_func(args, fy):
+def loss_func(args, f, y):
     if args.loss == 'softhinge':
         sp = partial(torch.nn.functional.softplus, beta=args.loss_beta)
-        return sp(args.loss_margin - args.alpha * fy) / args.alpha
+        return sp(args.loss_margin - args.alpha * f * y) / args.alpha
     if args.loss == 'qhinge':
-        return 0.5 * (args.loss_margin - args.alpha * fy).relu().pow(2) / args.alpha
+        return 0.5 * (args.loss_margin - args.alpha * f * y).relu().pow(2) / args.alpha
 
 
-def loss_func_prime(args, fy):
+def loss_func_prime(args, f, y):
     if args.loss == 'softhinge':
-        return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * fy))
+        return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * f * y)) * y
     if args.loss == 'qhinge':
-        return -(args.loss_margin - args.alpha * fy).relu()
+        return -(args.loss_margin - args.alpha * f * y).relu() * y
 
 
 class SplitEval(torch.nn.Module):
@@ -82,8 +82,8 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             stop = True
 
         state['train'] = {
-            'loss': loss_func(args, otr * ytr).mean().item(),
-            'aloss': args.alpha * loss_func(args, otr * ytr).mean().item(),
+            'loss': loss_func(args, otr, ytr).mean().item(),
+            'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
             'err': (otr * ytr <= 0).double().mean().item(),
             'nd': (args.alpha * otr * ytr < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * otr * ytr).min().item(),
@@ -104,8 +104,8 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                 ote = ktetr @ c
 
             state['test'] = {
-                'loss': loss_func(args, ote * yte).mean().item(),
-                'aloss': args.alpha * loss_func(args, ote * yte).mean().item(),
+                'loss': loss_func(args, ote, yte).mean().item(),
+                'aloss': args.alpha * loss_func(args, ote, yte).mean().item(),
                 'err': (ote * yte <= 0).double().mean().item(),
                 'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
                 'mind': (args.alpha * ote * yte).min().item(),
@@ -218,8 +218,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 tmp_outputs_index = -1
 
         state['train'] = {
-            'loss': loss_func(args, otr * ytr).mean().item(),
-            'aloss': args.alpha * loss_func(args, otr * ytr).mean().item(),
+            'loss': loss_func(args, otr, ytr).mean().item(),
+            'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
             'err': (otr * ytr <= 0).double().mean().item(),
             'nd': (args.alpha * otr * ytr < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * otr * ytr).min().item(),
@@ -229,8 +229,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'labels': ytr if save_outputs else None,
         }
         state['test'] = {
-            'loss': loss_func(args, ote * yte).mean().item(),
-            'aloss': args.alpha * loss_func(args, ote * yte).mean().item(),
+            'loss': loss_func(args, ote, yte).mean().item(),
+            'aloss': args.alpha * loss_func(args, ote, yte).mean().item(),
             'err': test_err,
             'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * ote * yte).min().item(),
