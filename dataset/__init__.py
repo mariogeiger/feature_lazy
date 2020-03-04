@@ -213,10 +213,9 @@ def random_split(x, y, ps, seeds, classes):
 
     torch.manual_seed(seed)
     xs = [x[torch.randperm(len(x))] for x in xs]
-    ys = [torch.full((len(x),), i, dtype=torch.long) for x, i in zip(xs, classes)]
 
     x = torch.stack(list(chain(*zip(*xs))))
-    y = torch.stack(list(chain(*zip(*ys))))
+    y = torch.arange(len(x)) % len(classes)
 
     assert len(x) >= p
     return [(x[:p], y[:p])] + random_split(x[p:], y[p:], ps, seeds, classes)
