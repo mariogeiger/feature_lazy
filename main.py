@@ -26,7 +26,7 @@ def loss_func(args, fy):
 
 def loss_func_prime(args, fy):
     if args.loss == 'softhinge':
-        return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * fy)).mul(args.loss_beta)
+        return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * fy))
     if args.loss == 'qhinge':
         return -(args.loss_margin - args.alpha * fy).relu()
 
