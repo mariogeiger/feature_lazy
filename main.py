@@ -346,7 +346,7 @@ def init(args):
     [(xte, yte), (xtk, ytk), (xtr, ytr)] = get_binary_dataset(
         args.dataset,
         [args.pte, args.ptk, args.ptr],
-        [args.seed_testset, args.seed_kernelset, args.seed_trainset],
+        [args.seed_testset + args.pte, args.seed_kernelset + args.ptk, args.seed_trainset + args.ptr],
         args.d,
         args.device,
         torch.get_default_dtype()
