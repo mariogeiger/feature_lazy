@@ -82,6 +82,8 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
 
     transform = torchvision.transforms.ToTensor()
 
+    torch.manual_seed(seeds[0])
+
     if dataset == "mnist":
         tr = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=False, transform=transform)
