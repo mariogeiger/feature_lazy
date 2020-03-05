@@ -68,12 +68,17 @@ def get_binary_dataset(dataset, ps, seeds, d, device=None, dtype=None):
 
     outs = []
     for x, y, i in sets:
-        assert len(y.unique()) % 2 == 0
-        y = (y % 2).double() * 2 - 1
-
         x = x.to(device=device, dtype=dtype)
-        y = y.to(device=device, dtype=torch.long)
-        outs += [(x, y, i)]
+
+        assert len(y.unique()) % 2 == 0
+        b = x.new_zeros(len(y))
+        for j, z in enumerate(y.unique()):
+            if j % 2 == 0:
+                b[y == z] = 1
+            else:
+                b[y == z] = -1
+
+        outs += [(x, b, i)]
 
     return outs
 
