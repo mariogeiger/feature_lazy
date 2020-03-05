@@ -122,8 +122,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         otr0 = torch.zeros_like(otr0)
         ote0 = torch.zeros_like(ote0)
 
-    jtr = torch.randperm(len(xtr))[:10 * args.chunk].sort().values()
-    jte = torch.randperm(len(xte))[:10 * args.chunk].sort().values()
+    jtr = torch.randperm(len(xtr))[:10 * args.chunk].sort().values
+    jte = torch.randperm(len(xte))[:10 * args.chunk].sort().values
     ytrj = ytr[jtr]
     ytej = yte[jte]
 
