@@ -225,7 +225,7 @@ def random_split(x, y, i, ps, seeds, classes):
         xx.append(x[rp])
         ii.append(i[rp])
 
-    ys = [torch.full((len(x),), z, dtype=torch.long) for x, z in zip(xs, classes)]
+    ys = [torch.full((len(x),), z, dtype=torch.long) for x, z in zip(xx, classes)]
 
     x = torch.stack(list(chain(*zip(*xx))))
     y = torch.stack(list(chain(*zip(*ys))))
