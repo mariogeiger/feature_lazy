@@ -10,12 +10,16 @@ from itertools import chain
 
 import torch
 
+def inverf2(x):
+    """ Inverse error function in 2d."""
+    return (-2 * (1 - x).log()).sqrt()
+
 
 def pca(x, d, whitening):
-    '''
+    """
     :param x: [P, ...]
     :return: [P, d]
-    '''
+    """
 
     z = x.flatten(1)
     mu = z.mean(0)
@@ -171,13 +175,49 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
             out += [(x[:p], y[:p])]
         return out
 
+    if dataset == 'sphere_grid':
+        assert d == 2, "Spherical grid is only implemented in 2D"
+        import math
+        out = []
+
+        for p, seed in zip(ps, seeds):
+            torch.manual_seed(seed)
+
+            # params, eventually to be added to parser
+            bins = 500
+            theta_bins = 50
+            r_bins = bins // theta_bins
+
+            n_per_box = p // bins
+
+            assert p % bins == 0, f"p needs to be multiple of {bins}, number of bins"
+            assert p % theta_bins == 0, f"p needs to be multiple of {theta_bins}, number of angular bins"
+
+            rgauss = inverf2(torch.arange(r_bins).double().div_(r_bins))
+            # cutting the last bin of the gaussian
+            rgauss = torch.cat((rgauss, torch.ones(1)*4.0))
+            rdiff = rgauss[1:] - rgauss[:-1]
+            x = torch.zeros(p,d)
+
+            for i in range(bins):
+                theta = (torch.rand(n_per_box) + (i % theta_bins)) / theta_bins * 2 * math.pi
+                r = torch.rand(n_per_box) * rdiff[i // theta_bins] + rgauss[i // theta_bins]
+                x[i * n_per_box:(i + 1) * n_per_box, 0] = r.mul(theta.cos())
+                x[i * n_per_box:(i + 1) * n_per_box, 1] = r.mul(theta.sin())
+
+            r = x.norm(dim=1)
+            y = 2 * (r > rgauss[len(rgauss) // 2]) - 1
+            tr = [(x, y.item()) for x, y in zip(x, y)]
+            x, y = dataset_to_tensors(tr)
+            out += [(x, y)]
+        return out
+
     raise ValueError("unknown dataset")
 
 
 def dataset_to_tensors(dataset):
     dataset = [(x.type(torch.float64), int(y)) for x, y in dataset]
     classes = sorted({y for x, y in dataset})
-
     sets = [[(x, y) for x, y in dataset if y == i] for i in classes]
 
     sets = [

@@ -429,7 +429,7 @@ def main():
 
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
-    parser.add_argument("--ptk", type=int, default=0)
+    parser.add_argument("--ptk", type=int)
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
     parser.add_argument("--whitening", type=int, default=1)
@@ -480,6 +480,9 @@ def main():
     if args.pte is None:
         args.pte = args.ptr
 
+    if args.ptk is None:
+        args.ptk = args.ptr
+
     if args.chunk is None:
         args.chunk = max(args.ptr, args.pte, args.ptk)
 
@@ -487,6 +490,7 @@ def main():
     saved = False
     try:
         for res in execute(args):
+            print(res)
             res['git'] = git
             with open(args.pickle, 'wb') as f:
                 torch.save(args, f)
