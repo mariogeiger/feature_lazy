@@ -172,7 +172,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
             y = 2 * y - 1
             tr = [(x, y.item()) for x, y in zip(x, y)]
             x, y, _ = dataset_to_tensors(tr)
-            out += [(x[:p], y[:p], None)]
+            out += [(x[:p], y[:p], torch.full_like(y, -1))]
         return out
 
     raise ValueError("unknown dataset")
