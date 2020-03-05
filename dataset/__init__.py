@@ -6,8 +6,10 @@
 - split in train and test set in an equilibrated way (same amount of each classes)
 """
 import functools
+import math
 from itertools import chain
 
+import scipy.special
 import torch
 
 
@@ -171,16 +173,16 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
                 y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
             if dataset == 'sphere':
                 r = x.norm(dim=1)
-                y = (r > d**0.5)
+                y = (r**2 > d - 2 / 3)
+            if dataset == 'cube':
+                a = scipy.special.erfinv(0.5**(1 / d)) * 2**0.5
+                y = (x.abs() < a).all(1)
             if dataset == 'xnor':
                 y = (x[:, 0] > 0) * (x[:, 1] > 0) + (x[:, 0] < 0) * (x[:, 1] < 0)
             if dataset == 'and':  # classical AND logic gate (only two relevant dimensions, x1 and x2, no matter what the input dimension d is)
                 y = (x[:, 0] > 0) * (x[:, 1] > 0)
             if dataset == 'andD':  # multi-dimensional AND logic gate (all d dimensions are relevant)
-                tmp = 1
-                for i in range(d):
-                    tmp = tmp * (x[:, i] > 0)
-                y = tmp
+                y = (x > 0).all(1)
             y = y.to(dtype=torch.long)
             out += [(x, y, None)]
         return out
