@@ -180,7 +180,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
 
 def dataset_to_tensors(dataset):
     dataset = [(x.type(torch.float64), int(y), i) for i, (x, y) in enumerate(dataset)]
-    classes = sorted({y for x, y in dataset})
+    classes = sorted({y for x, y, i in dataset})
 
     sets = [[(x, y, i) for x, y, i in dataset if y == z] for z in classes]
 
