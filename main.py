@@ -142,8 +142,6 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
         if stop:
             break
 
-    return out
-
 
 def run_regular(args, f0, xtr, ytr, xte, yte):
 
@@ -264,11 +262,13 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         init_kernel = compute_kernels(f0, xtk, xte[:len(xtk)])
 
     if args.init_kernel == 1:
-        run['init_kernel'] = run_kernel(args, *init_kernel, f0, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
+        for out in run_kernel(args, *init_kernel, f0, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+            run['init_kernel'] = out
 
     if args.init_kernel_ptr == 1:
         init_kernel_ptr = compute_kernels(f0, xtr, xte[:len(xtk)])
-        run['init_kernel_ptr'] = run_kernel(args, *init_kernel_ptr, f0, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)])
+        for out in run_kernel(args, *init_kernel_ptr, f0, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
+            run['init_kernel_ptr'] = out
         del init_kernel_ptr
 
     if args.delta_kernel == 1:
@@ -292,12 +292,14 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     al = 0
 
                 running_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
-                out['dynamics'][-1]['kernel'] = run_kernel(args, *running_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
+                for kout in run_kernel(args, *running_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+                    out['dynamics'][-1]['kernel'] = kout
                 if args.ptr < args.ptk:
                     ktktk, ktetk, ktete = running_kernel
                     ktktk = ktktk[:len(xtr)][:, :len(xtr)]
                     ktetk = ktetk[:, :len(xtr)]
-                    out['dynamics'][-1]['kernel_ptr'] = run_kernel(args, ktktk, ktetk, ktete, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)])
+                    for kout in run_kernel(args, ktktk, ktetk, ktete, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+                        out['dynamics'][-1]['kernel_ptr'] = kout
                 else:
                     out['dynamics'][-1]['kernel_ptr'] = out['dynamics'][-1]['kernel']
                 out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
@@ -319,11 +321,13 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             final_kernel_ptr = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
 
         if args.final_kernel == 1:
-            run['final_kernel'] = run_kernel(args, *final_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)])
+            for out in run_kernel(args, *final_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+                run['final_kernel'] = out
 
         if args.final_kernel_ptr == 1:
             assert len(xtk) >= len(xtr)
-            run['final_kernel_ptr'] = run_kernel(args, *final_kernel_ptr, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)])
+            for out in run_kernel(args, *final_kernel_ptr, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+                run['final_kernel_ptr'] = out
 
         if args.delta_kernel == 1:
             final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
@@ -343,11 +347,12 @@ def init(args):
     if args.dtype == 'float32':
         torch.set_default_dtype(torch.float32)
 
-    [(xte, yte), (xtk, ytk), (xtr, ytr)] = get_binary_dataset(
+    [(xte, yte, ite), (xtk, ytk, itk), (xtr, ytr, itr)] = get_binary_dataset(
         args.dataset,
         (args.pte, args.ptk, args.ptr),
         (args.seed_testset + args.pte, args.seed_kernelset + args.ptk, args.seed_trainset + args.ptr),
         args.d,
+        args.stretching,
         args.device,
         torch.get_default_dtype()
     )
@@ -401,14 +406,19 @@ def init(args):
     f = SplitEval(f, args.chunk)
     f = f.to(args.device)
 
-    return f, xtr, ytr, xtk, ytk, xte, yte
+    return f, xtr, ytr, itr, xtk, ytk, itk, xte, yte, ite
 
 
 def execute(args):
-    f, xtr, ytr, xtk, ytk, xte, yte = init(args)
+    f, xtr, ytr, itr, xtk, ytk, itk, xte, yte, ite = init(args)
 
     torch.manual_seed(0)
     for run in run_exp(args, f, xtr, ytr, xtk, ytk, xte, yte):
+        run['dataset'] = {
+            'test': ite,
+            'kernel': itk,
+            'train': itr,
+        }
         yield run
 
 
@@ -429,9 +439,10 @@ def main():
 
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
-    parser.add_argument("--ptk", type=int)
+    parser.add_argument("--ptk", type=int, default=0)
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
+    parser.add_argument("--stretching", type=float, default=None)
     parser.add_argument("--whitening", type=int, default=1)
 
     parser.add_argument("--arch", type=str, required=True)
@@ -480,9 +491,6 @@ def main():
     if args.pte is None:
         args.pte = args.ptr
 
-    if args.ptk is None:
-        args.ptk = args.ptr
-
     if args.chunk is None:
         args.chunk = max(args.ptr, args.pte, args.ptk)
 
@@ -490,7 +498,6 @@ def main():
     saved = False
     try:
         for res in execute(args):
-            print(res)
             res['git'] = git
             with open(args.pickle, 'wb') as f:
                 torch.save(args, f)
