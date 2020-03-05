@@ -155,7 +155,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
         x = center_normalize(x)
         return random_split(x, y, i, ps, seeds, y.unique())
 
-    if dataset in ['stripe', 'sphere', 'xnor']:
+    if dataset in ['stripe', 'sphere', 'xnor','and','andD']:
         out = []
         for p, seed in zip(ps, seeds):
             torch.manual_seed(seed)
