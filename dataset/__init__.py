@@ -157,8 +157,10 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
 
     if dataset in ['stripe', 'sphere', 'xnor','and','andD']:
         out = []
+        s = 0
         for p, seed in zip(ps, seeds):
-            torch.manual_seed(seed)
+            s += seed + 1
+            torch.manual_seed(s)
             x = torch.randn(2 * p, d, dtype=torch.float64)
             if dataset == 'stripe':
                 y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
