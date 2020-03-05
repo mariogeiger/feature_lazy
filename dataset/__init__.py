@@ -155,7 +155,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
         x = center_normalize(x)
         return random_split(x, y, i, ps, seeds, y.unique())
 
-    if dataset in ['stripe', 'sphere', 'xnor']:
+    if dataset in ['stripe', 'sphere', 'xnor','and','andD']:
         out = []
         for p, seed in zip(ps, seeds):
             torch.manual_seed(seed)
@@ -166,9 +166,14 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
                 r = x.norm(dim=1)
                 y = (r > d**0.5)
             if dataset == 'xnor':
-                threshold_x = 0.0
-                threshold_y = 0.0
-                y = (x[:, 0] > threshold_x) * (x[:, 1] > threshold_y) + (x[:, 0] < threshold_x) * (x[:, 1] < threshold_y)
+                y = (x[:, 0] > 0) * (x[:, 1] > 0) + (x[:, 0] < 0) * (x[:, 1] < 0)
+            if dataset == 'and': # classical AND logic gate (only two relevant dimensions, x1 and x2, no matter what the input dimension d is)
+                y = (x[:, 0] > 0) * (x[:, 1] > 0)
+            if dataset == 'andD': # multi-dimensional AND logic gate (all d dimensions are relevant)
+                tmp = 1
+                for i in range(d):
+                    tmp = tmp * (x[:,i] > 0)
+                y = tmp
             y = 2 * y - 1
             tr = [(x, y.item()) for x, y in zip(x, y)]
             x, y, _ = dataset_to_tensors(tr)
