@@ -55,10 +55,11 @@ def get_dataset(dataset, ps, seeds, d, device=None, dtype=None):
     sets = get_normalized_dataset(dataset, ps, seeds, d)
 
     outs = []
-    for x, y in sets:
+    for x, y, i in sets:
         x = x.to(device=device, dtype=dtype)
         y = y.to(device=device, dtype=torch.long)
-        outs += [(x, y)]
+        i = i.to(device=device, dtype=torch.long)
+        outs += [(x, y, i)]
 
     return outs
 
@@ -67,11 +68,12 @@ def get_binary_dataset(dataset, ps, seeds, d, device=None, dtype=None):
     sets = get_normalized_dataset(dataset, ps, seeds, d)
 
     outs = []
-    for x, y in sets:
+    for x, y, i in sets:
         assert len(y.unique()) % 2 == 0
         x = x.to(device=device, dtype=dtype)
         y = (2 * (torch.arange(len(y)) % 2) - 1).type(x.dtype).to(device)
-        outs += [(x, y)]
+        i = i.to(device=device, dtype=torch.long)
+        outs += [(x, y, i)]
 
     return outs
 
@@ -87,71 +89,71 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
     if dataset == "mnist":
         tr = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=False, transform=transform)
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "kmnist":
         tr = torchvision.datasets.KMNIST('~/.torchvision/datasets/KMNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.KMNIST('~/.torchvision/datasets/KMNIST', train=False, transform=transform)
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "emnist-letters":
         tr = torchvision.datasets.EMNIST('~/.torchvision/datasets/EMNIST', train=True, download=True, transform=transform, split='letters')
         te = torchvision.datasets.EMNIST('~/.torchvision/datasets/EMNIST', train=False, transform=transform, split='letters')
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "fashion":
         tr = torchvision.datasets.FashionMNIST('~/.torchvision/datasets/FashionMNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.FashionMNIST('~/.torchvision/datasets/FashionMNIST', train=False, transform=transform)
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "cifar10":
         tr = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform)
         te = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform)
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "cifar_catdog":
         tr = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform) if y in [3, 5]]
         te = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform) if y in [3, 5]]
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "cifar_shipbird":
         tr = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform) if y in [8, 2]]
         te = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform) if y in [8, 2]]
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "cifar_catplane":
         tr = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform) if y in [3, 0]]
         te = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform) if y in [3, 0]]
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "cifar_animal":
         tr = [(x, 0 if y in [0, 1, 8, 9] else 1) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform)]
         te = [(x, 0 if y in [0, 1, 8, 9] else 1) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform)]
-        x, y = dataset_to_tensors(list(tr) + list(te))
+        x, y, i = dataset_to_tensors(list(tr) + list(te))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "catdog":
         tr = torchvision.datasets.ImageFolder('~/.torchvision/datasets/catdog', transform=transform)
-        x, y = dataset_to_tensors(list(tr))
+        x, y, i = dataset_to_tensors(list(tr))
         x = center_normalize(x)
-        return random_split(x, y, ps, seeds, y.unique())
+        return random_split(x, y, i, ps, seeds, y.unique())
 
     if dataset in ['stripe', 'sphere', 'xnor']:
         out = []
@@ -169,18 +171,18 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
                 y = (x[:, 0] > threshold_x) * (x[:, 1] > threshold_y) + (x[:, 0] < threshold_x) * (x[:, 1] < threshold_y)
             y = 2 * y - 1
             tr = [(x, y.item()) for x, y in zip(x, y)]
-            x, y = dataset_to_tensors(tr)
-            out += [(x[:p], y[:p])]
+            x, y, _ = dataset_to_tensors(tr)
+            out += [(x[:p], y[:p], None)]
         return out
 
     raise ValueError("unknown dataset")
 
 
 def dataset_to_tensors(dataset):
-    dataset = [(x.type(torch.float64), int(y)) for x, y in dataset]
+    dataset = [(x.type(torch.float64), int(y), i) for i, (x, y) in enumerate(dataset)]
     classes = sorted({y for x, y in dataset})
 
-    sets = [[(x, y) for x, y in dataset if y == i] for i in classes]
+    sets = [[(x, y, i) for x, y, i in dataset if y == z] for z in classes]
 
     sets = [
         [x[i] for i in torch.randperm(len(x))]
@@ -189,9 +191,10 @@ def dataset_to_tensors(dataset):
 
     dataset = list(chain(*zip(*sets)))
 
-    x = torch.stack([x for x, y in dataset])
-    y = torch.tensor([y for x, y in dataset], dtype=torch.long)
-    return x, y
+    x = torch.stack([x for x, y, i in dataset])
+    y = torch.tensor([y for x, y, i in dataset], dtype=torch.long)
+    i = torch.tensor([i for x, y, i in dataset], dtype=torch.long)
+    return x, y, i
 
 
 def center_normalize(x):
@@ -200,13 +203,13 @@ def center_normalize(x):
     return x
 
 
-def random_split(x, y, ps, seeds, classes):
+def random_split(x, y, i, ps, seeds, classes):
     assert len(ps) == len(seeds)
 
     if len(ps) == 0:
         return []
 
-    xs = [x[y == i] for i in classes]
+    xs = [(x[y == z], i[y == z]) for z in classes]
 
     ps = list(ps)
     seeds = list(seeds)
@@ -215,11 +218,18 @@ def random_split(x, y, ps, seeds, classes):
     seed = seeds.pop(0)
 
     torch.manual_seed(seed)
-    xs = [x[torch.randperm(len(x))] for x in xs]
-    ys = [torch.full((len(x),), i, dtype=torch.long) for x, i in zip(xs, classes)]
+    xx = []
+    ii = []
+    for x, i in xs:
+        rp = torch.randperm(len(x))
+        xx.append(x[rp])
+        ii.append(i[rp])
 
-    x = torch.stack(list(chain(*zip(*xs))))
+    ys = [torch.full((len(x),), z, dtype=torch.long) for x, z in zip(xs, classes)]
+
+    x = torch.stack(list(chain(*zip(*xx))))
     y = torch.stack(list(chain(*zip(*ys))))
+    i = torch.stack(list(chain(*zip(*ii))))
 
     assert len(x) >= p
-    return [(x[:p], y[:p])] + random_split(x[p:], y[p:], ps, seeds, classes)
+    return [(x[:p], y[:p], i[:p])] + random_split(x[p:], y[p:], i[p:], ps, seeds, classes)
