@@ -162,32 +162,29 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
         x = center_normalize(x)
         return intertwine_split(x, y, i, ps, seeds, y.unique())
 
-    if dataset in ['stripe', 'sphere', 'xnor', 'and', 'andD']:
-        out = []
-        s = 0
-        for p, seed in zip(ps, seeds):
-            s += seed + 1
-            torch.manual_seed(s)
-            x = torch.randn(p, d, dtype=torch.float64)
-            if dataset == 'stripe':
-                y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
-            if dataset == 'sphere':
-                r = x.norm(dim=1)
-                y = (r**2 > d - 2 / 3)
-            if dataset == 'cube':
-                a = scipy.special.erfinv(0.5**(1 / d)) * 2**0.5
-                y = (x.abs() < a).all(1)
-            if dataset == 'xnor':
-                y = (x[:, 0] > 0) * (x[:, 1] > 0) + (x[:, 0] < 0) * (x[:, 1] < 0)
-            if dataset == 'and':  # classical AND logic gate (only two relevant dimensions, x1 and x2, no matter what the input dimension d is)
-                y = (x[:, 0] > 0) * (x[:, 1] > 0)
-            if dataset == 'andD':  # multi-dimensional AND logic gate (all d dimensions are relevant)
-                y = (x > 0).all(1)
-            y = y.to(dtype=torch.long)
-            out += [(x, y, None)]
-        return out
-
-    raise ValueError("unknown dataset")
+    out = []
+    s = 0
+    for p, seed in zip(ps, seeds):
+        s += seed + 1
+        torch.manual_seed(s)
+        x = torch.randn(p, d, dtype=torch.float64)
+        if dataset == 'stripe':
+            y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
+        if dataset == 'sphere':
+            r = x.norm(dim=1)
+            y = (r**2 > d - 2 / 3)
+        if dataset == 'cube':
+            a = scipy.special.erfinv(0.5**(1 / d)) * 2**0.5
+            y = (x.abs() < a).all(1)
+        if dataset == 'xnor':
+            y = (x[:, 0] > 0) * (x[:, 1] > 0) + (x[:, 0] < 0) * (x[:, 1] < 0)
+        if dataset == 'and':  # classical AND logic gate (only two relevant dimensions, x1 and x2, no matter what the input dimension d is)
+            y = (x[:, 0] > 0) * (x[:, 1] > 0)
+        if dataset == 'andD':  # multi-dimensional AND logic gate (all d dimensions are relevant)
+            y = (x > 0).all(1)
+        y = y.to(dtype=torch.long)
+        out += [(x, y, None)]
+    return out
 
 
 def dataset_to_tensors(dataset):
