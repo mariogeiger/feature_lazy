@@ -7,8 +7,9 @@
 """
 import functools
 from itertools import chain
-
+import math
 import torch
+import torch.nn.functional as F
 
 def inverf2(x):
     """ Inverse error function in 2d."""
@@ -74,8 +75,8 @@ def get_dataset(dataset, ps, seeds, d, device=None, dtype=None):
     return outs
 
 
-def get_binary_dataset(dataset, ps, seeds, d, stretching, device=None, dtype=None):
-    sets = get_normalized_dataset(dataset, ps, seeds, d, stretching)
+def get_binary_dataset(dataset, ps, seeds, d, stretching, params, device=None, dtype=None):
+    sets = get_normalized_dataset(dataset, ps, seeds, d, stretching, params)
 
     outs = []
     for x, y, i in sets:
@@ -89,7 +90,7 @@ def get_binary_dataset(dataset, ps, seeds, d, stretching, device=None, dtype=Non
 
 
 @functools.lru_cache(maxsize=2)
-def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0):
+def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=[]):
     import torchvision
 
     transform = torchvision.transforms.ToTensor()
@@ -197,16 +198,17 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0):
 
     if dataset == 'sphere_grid':
         assert d == 2, "Spherical grid is only implemented in 2D"
-        import math
+        # import math
         out = []
         s = 0
         for p, seed in zip(ps, seeds):
             torch.manual_seed(seed + s)
             s += 1
 
-            # params, eventually to be added to parser
-            bins = 500
-            theta_bins = 50
+            # check if params are given in parser
+            bins = 500 if params[0] is None else params[0]
+            theta_bins = 50 if params[1] is None else params[1]
+
             r_bins = bins // theta_bins
 
             n_per_box = p // bins
@@ -232,6 +234,38 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0):
             x, y, _ = dataset_to_tensors(tr)
             out += [(x, y, torch.full_like(y, -1))]
         return out
+
+    if dataset == 'signal_1d':
+        out = []
+        s = 0
+        for p, seed in zip(ps, seeds):
+            torch.manual_seed(seed + s)
+            s += 1
+
+            n0 = 2 if params[0] is None else params[0]
+            C0 = .64 if params[1] is None else params[1]
+
+            x = torch.zeros(p, d)
+            y = torch.zeros(p)
+            c = torch.randn(p, 2, n0)
+
+            psi = torch.linspace(0, math.pi, d).cos().reshape(1, 1, -1) / d
+
+            for pi in range(p):
+                for k in range(n0):
+                    x[pi] += c[pi, 0, k] * torch.linspace(0, (k + 1) * math.pi, d).cos() + \
+                             c[pi, 1, k] * torch.linspace(0, (k + 1) * math.pi, d).sin()
+
+                y[pi] += F.conv1d(torch.cat((x[pi], x[pi, :-1]), dim=0).reshape(1, 1, -1), psi).max(dim=2).values[0].item() - C0
+
+            y = 2 * (y > 0) - 1
+            tr = [(x, y.item()) for x, y in zip(x, y)]
+            x, y, _ = dataset_to_tensors(tr)
+            out += [(x[:p], y[:p], torch.full_like(y, -1))]
+        return out
+
+
+
 
     raise ValueError("unknown dataset")
 
