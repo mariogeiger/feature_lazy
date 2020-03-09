@@ -215,6 +215,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             if tmp_outputs_index == len(dynamics):
                 tmp_outputs_index = -1
 
+        state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
             'loss': loss_func(args, otr, ytr).mean().item(),
             'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
@@ -466,6 +467,7 @@ def main():
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
     parser.add_argument("--save_outputs", type=int, default=0)
+    parser.add_argument("--save_state", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
