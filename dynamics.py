@@ -213,7 +213,7 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
     margin = 0
 
     lprim = loss_prim(otr, ytr)
-    grad = ktrtr @ lprim    / len(ytr)
+    grad = ktrtr @ lprim / len(ytr)
     dgrad, dout = 0, 0
 
     for step in itertools.count():

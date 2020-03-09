@@ -19,12 +19,6 @@ def inverf2(x):
     return (-2 * (1 - x).log()).sqrt()
 
 
-def stretch(x, dims, factor):
-    """Stretch specific dimensions - dims - by factor."""
-    x[:,dims] *= factor
-    return x
-
-
 def pca(x, d, whitening):
     """
     :param x: [P, ...]
@@ -183,7 +177,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
 
         if stretching:
             ds = d // 2 if params[0] is None else params[1]
-            x = stretch(x, range(ds, d), stretching)
+            x[:,ds:] *= stretching
 
         if dataset == 'stripe':
             y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
@@ -205,7 +199,6 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
             y = (x > 0).all(1)
         if dataset == 'sphere_grid':
             assert d == 2, "Spherical grid is only implemented in 2D"
-
             bins = 500 if params[0] is None else params[0]
             theta_bins = 50 if params[1] is None else params[1]
             assert p % bins == 0, f"p needs to be multiple of {bins}, number of bins"
@@ -217,32 +210,27 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
             # cutting the last bin of the gaussian which would go to infinity
             infty = 4.0
             r_spacing = torch.cat((r_spacing, torch.ones(1) * infty))
-
             r_diff = r_spacing[1:] - r_spacing[:-1]
             x = torch.zeros(p, d)
-
             for i in range(bins):
                 theta = (torch.rand(ppc) + (i % theta_bins)) / theta_bins * 2 * math.pi
                 r = torch.rand(ppc) * r_diff[i // theta_bins] + r_spacing[i // theta_bins]
                 x[i * ppc:(i + 1) * ppc, 0] = r.mul(theta.cos())
                 x[i * ppc:(i + 1) * ppc, 1] = r.mul(theta.sin())
             r = x.norm(dim=1)
-            y = 2 * (r > r_spacing[len(r_spacing) // 2]) - 1
+            y = r > r_spacing[len(r_spacing) // 2]
+
         if dataset == 'signal_1d':
-            n0 = 2 if params[0] is None else params[0]
-            C0 = .64 if params[1] is None else params[1]
-
+            n0 = 1 if params[0] is None else params[0]
+            C0 = n0 * math.sqrt(2 - 2 / 3) if params[1] is None else params[1] # TO REDO CALCULATIONS
+            r = torch.linspace(0, math.pi, d).reshape(-1, 1).repeat(1, p)
             x = torch.zeros(p, d)
-            y = torch.zeros(p)
-            c = torch.randn(p, 2, n0)
-            psi = torch.linspace(0, math.pi, d).cos().reshape(1, 1, -1) / d
-
-            for pi in range(p):
-                for k in range(n0):
-                    x[pi] += c[pi, 0, k] * torch.linspace(0, (k + 1) * math.pi, d).cos() + \
-                             c[pi, 1, k] * torch.linspace(0, (k + 1) * math.pi, d).sin()
-                y[pi] += F.conv1d(torch.cat((x[pi], x[pi, :-1]), dim=0).reshape(1, 1, -1), psi).max(dim=2).values[0].item() - C0
-            y = 2 * (y > 0) - 1
+            a = torch.randn(p, n0)
+            b = a.clone()
+            psi = r[:, 0].cos().reshape(1, 1, -1)
+            for k in range(n0):
+                x += (a[:, k].mul(((k + 1) * r).cos()) + b[:, k].mul(((k + 1) * r).sin())).T
+            y = F.conv1d(torch.cat((x, x[:, :-1]), dim=1).reshape(p, 1, -1), psi).max(dim=2).values.reshape(-1) - C0 > 0
         y = y.to(dtype=torch.long)
         out += [(x, y, None)]
     return out
