@@ -98,7 +98,7 @@ def get_binary_dataset(dataset, ps, seeds, d, stretching, params, device=None, d
 
 
 @functools.lru_cache(maxsize=2)
-def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=[]):
+def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
     import torchvision
 
     transform = torchvision.transforms.ToTensor()
@@ -228,24 +228,21 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=[]):
                 x[i * ppc:(i + 1) * ppc, 1] = r.mul(theta.sin())
             r = x.norm(dim=1)
             y = 2 * (r > r_spacing[len(r_spacing) // 2]) - 1
+        if dataset == 'signal_1d':
+            n0 = 2 if params[0] is None else params[0]
+            C0 = .64 if params[1] is None else params[1]
 
-            if dataset == 'signal_1d':
-                n0 = 2 if params[0] is None else params[0]
-                C0 = .64 if params[1] is None else params[1]
+            x = torch.zeros(p, d)
+            y = torch.zeros(p)
+            c = torch.randn(p, 2, n0)
+            psi = torch.linspace(0, math.pi, d).cos().reshape(1, 1, -1) / d
 
-                x = torch.zeros(p, d)
-                y = torch.zeros(p)
-                c = torch.randn(p, 2, n0)
-
-                psi = torch.linspace(0, math.pi, d).cos().reshape(1, 1, -1) / d
-
-                for pi in range(p):
-                    for k in range(n0):
-                        x[pi] += c[pi, 0, k] * torch.linspace(0, (k + 1) * math.pi, d).cos() + \
-                                 c[pi, 1, k] * torch.linspace(0, (k + 1) * math.pi, d).sin()
-                    y[pi] += F.conv1d(torch.cat((x[pi], x[pi, :-1]), dim=0).reshape(1, 1, -1), psi).max(dim=2).values[0].item() - C0
-                y = 2 * (y > 0) - 1
-
+            for pi in range(p):
+                for k in range(n0):
+                    x[pi] += c[pi, 0, k] * torch.linspace(0, (k + 1) * math.pi, d).cos() + \
+                             c[pi, 1, k] * torch.linspace(0, (k + 1) * math.pi, d).sin()
+                y[pi] += F.conv1d(torch.cat((x[pi], x[pi, :-1]), dim=0).reshape(1, 1, -1), psi).max(dim=2).values[0].item() - C0
+            y = 2 * (y > 0) - 1
         y = y.to(dtype=torch.long)
         out += [(x, y, None)]
     return out
