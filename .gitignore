@@ -6,4 +6,4 @@ stderr
 info
 *.png
 __pycache__
-run_cldr_grid.sh
+run.sh
