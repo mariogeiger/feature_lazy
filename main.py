@@ -447,8 +447,8 @@ def main():
     parser.add_argument("--d", type=int)
     parser.add_argument("--stretching", type=float, default=None)
     parser.add_argument("--whitening", type=int, default=1)
-    # parser.add_argument("--data_param1", type=int, default=None, help="Total number of cells, if dataset = sphere_grid. n0 if dataset = signal_1d.")
-    # parser.add_argument("--data_param2", type=int, default=None, help="Number of bins in theta, if dataset = sphere_grid. C0 if dataset = signal_1d.")
+    parser.add_argument("--data_param1", type=int, default=None, help="Total number of cells, if dataset = sphere_grid. n0 if dataset = signal_1d.")
+    parser.add_argument("--data_param2", type=int, default=None, help="Number of bins in theta, if dataset = sphere_grid. C0 if dataset = signal_1d.")
 
 
     parser.add_argument("--arch", type=str, required=True)
