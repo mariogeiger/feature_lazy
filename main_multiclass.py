@@ -161,7 +161,7 @@ def init(args):
     if args.dtype == 'float32':
         torch.set_default_dtype(torch.float32)
 
-    [(xte, yte), (xtr, ytr)] = get_dataset(
+    [(xte, yte, ite), (xtr, ytr, itr)] = get_dataset(
         args.dataset,
         (args.pte, args.ptr),
         (args.seed_testset + args.pte, args.seed_trainset + args.ptr),
@@ -206,14 +206,18 @@ def init(args):
     f = SplitEval(f, args.chunk)
     f = f.to(args.device)
 
-    return f, xtr, ytr, xte, yte
+    return f, xtr, ytr, itr, xte, yte, ite
 
 
 def execute(args):
-    f, xtr, ytr, xte, yte = init(args)
+    f, xtr, ytr, itr, xte, yte, ite = init(args)
 
     torch.manual_seed(0)
     for run in run_exp(args, f, xtr, ytr, xte, yte):
+        run['dataset'] = {
+            'test': ite,
+            'train': itr,
+        }
         yield run
 
 

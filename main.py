@@ -215,6 +215,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             if tmp_outputs_index == len(dynamics):
                 tmp_outputs_index = -1
 
+        state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
             'loss': loss_func(args, otr, ytr).mean().item(),
             'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
@@ -447,8 +448,12 @@ def main():
     parser.add_argument("--d", type=int)
     parser.add_argument("--stretching", type=float, default=None)
     parser.add_argument("--whitening", type=int, default=1)
-    parser.add_argument("--data_param1", type=int, default=None, help="Total number of cells, if dataset = sphere_grid. n0 if dataset = signal_1d.")
-    parser.add_argument("--data_param2", type=int, default=None, help="Number of bins in theta, if dataset = sphere_grid. C0 if dataset = signal_1d.")
+    parser.add_argument("--data_param1", type=int, default=None, help=
+                        "Sphere dimension if dataset = Cylinder. When combined with stretching, 'non-spherical' dimensions are stretched. "
+                        "Total number of cells, if dataset = sphere_grid. "
+                        "n0 if dataset = signal_1d.")
+    parser.add_argument("--data_param2", type=int, default=None, help=
+                        "Number of bins in theta, if dataset = sphere_grid. C0 if dataset = signal_1d.")
 
 
     parser.add_argument("--arch", type=str, required=True)
@@ -474,6 +479,7 @@ def main():
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
     parser.add_argument("--save_outputs", type=int, default=0)
+    parser.add_argument("--save_state", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
