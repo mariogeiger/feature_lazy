@@ -182,7 +182,6 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         print(
             (
                 "[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] "
-                + "[dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] "
                 + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f}] "
                 + "[test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]"
             ).format(d=state, p=len(ytr)),
