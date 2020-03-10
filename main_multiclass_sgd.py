@@ -113,9 +113,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, f, otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.lr, args.bs):
-        otr = otr - otr0
+    for state, f, _otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.lr, args.bs):
         with torch.no_grad():
+            otr = f(xtr) - otr0
             ote = f(xte) - ote0
 
         state['grad_norm'] = grad.norm().item()
