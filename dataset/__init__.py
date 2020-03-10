@@ -176,7 +176,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
         x = torch.randn(p, d, dtype=torch.float64)
 
         if stretching:
-            ds = d // 2 if params[0] is None else params[1]
+            ds = d // 2 if params[0] is None else params[0]
             x[:,ds:] *= stretching
 
         if dataset == 'stripe':
