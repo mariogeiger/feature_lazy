@@ -117,9 +117,9 @@ class Conv1d(nn.Module):
         d = x.size(1)
         B = self.bias * self.B
         h = len(B)
-        x = torch.cat((x, x[:,:-1]), dim=1)
+        x = torch.cat((x, x[:, :-1]), dim=1)
         x = x.reshape(x.size(0), 1, d + d-1)
-        return (self.act(F.conv1d(x , self.W / d**0.5)).sum(dim=2) / d + B) @ (self.C / h)
+        return (self.act(F.conv1d(x, self.W / d**0.5, B)).sum(dim=2) / d) @ (self.C / h)
 
 
 class CV(nn.Module):

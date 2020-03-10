@@ -16,6 +16,8 @@ import torch.nn.functional as F
 
 def inverf2(x):
     """ Inverse error function in 2d."""
+    if 'torch' not in str(type(x)):
+        x = torch.tensor(x)
     return (-2 * (1 - x).log()).sqrt()
 
 
@@ -59,8 +61,8 @@ def pca(x, d, whitening):
 #     return (xtr, ytr), (xte, yte)
 
 
-def get_dataset(dataset, ps, seeds, d, device=None, dtype=None):
-    sets = get_normalized_dataset(dataset, ps, seeds, d)
+def get_dataset(dataset, ps, seeds, d, params=None, device=None, dtype=None):
+    sets = get_normalized_dataset(dataset, ps, seeds, d, params)
 
     outs = []
     for x, y, i in sets:
@@ -71,8 +73,8 @@ def get_dataset(dataset, ps, seeds, d, device=None, dtype=None):
     return outs
 
 
-def get_binary_dataset(dataset, ps, seeds, d, stretching, params, device=None, dtype=None):
-    sets = get_normalized_dataset(dataset, ps, seeds, d, stretching, params)
+def get_binary_dataset(dataset, ps, seeds, d, params=None, device=None, dtype=None):
+    sets = get_normalized_dataset(dataset, ps, seeds, d, params)
 
     outs = []
     for x, y, i in sets:
@@ -92,7 +94,7 @@ def get_binary_dataset(dataset, ps, seeds, d, stretching, params, device=None, d
 
 
 @functools.lru_cache(maxsize=2)
-def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
+def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
     import torchvision
 
     transform = torchvision.transforms.ToTensor()
@@ -174,11 +176,6 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
         s += seed + 1
         torch.manual_seed(s)
         x = torch.randn(p, d, dtype=torch.float64)
-
-        if stretching:
-            ds = d // 2 if params[0] is None else params[0]
-            x[:,ds:] *= stretching
-
         if dataset == 'stripe':
             y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
         if dataset == 'sphere':
@@ -186,8 +183,10 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
             y = (r**2 > d - 2 / 3)
         if dataset == 'cylinder':
             dsph = d // 2 if params[0] is None else params[0]
+            stretching = 1 if params[1] is None else params[1]
+            x[:, dsph:] *= stretching
             r = x[:, :dsph].norm(dim=1)
-            y = (r**2 > dsph  - 2 / 3)
+            y = (r**2 > dsph - 2 / 3)
         if dataset == 'cube':
             a = scipy.special.erfinv(0.5**(1 / d)) * 2**0.5
             y = (x.abs() < a).all(1)
@@ -222,15 +221,16 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, stretching=0, params=None):
 
         if dataset == 'signal_1d':
             n0 = 1 if params[0] is None else params[0]
-            C0 = n0 * math.sqrt(2 - 2 / 3) if params[1] is None else params[1] # TO REDO CALCULATIONS
-            r = torch.linspace(0, math.pi, d).reshape(-1, 1).repeat(1, p)
+            C0 = n0 * inverf2(1/2) if params[1] is None else params[1]
+            r = torch.linspace(0, 2*math.pi, d).reshape(-1, 1).repeat(1, p)
             x = torch.zeros(p, d)
             a = torch.randn(p, n0)
-            b = a.clone()
-            psi = r[:, 0].cos().reshape(1, 1, -1)
-            for k in range(n0):
-                x += (a[:, k].mul(((k + 1) * r).cos()) + b[:, k].mul(((k + 1) * r).sin())).T
-            y = F.conv1d(torch.cat((x, x[:, :-1]), dim=1).reshape(p, 1, -1), psi).max(dim=2).values.reshape(-1) - C0 > 0
+            b = torch.randn(p, n0)
+            # pattern psi: cos(r)
+            psi = r[:, 0].cos().reshape(1, 1, -1) / d
+            for k in range(1, n0+1):
+                x += (a[:, k-1].mul((k * r).cos()) + b[:, k-1].mul((k * r).sin())).T
+            y = 2 * F.conv1d(torch.cat((x, x[:, :-1]), dim=1).reshape(p, 1, -1), psi).max(dim=2).values.reshape(-1) - C0 > 0
         y = y.to(dtype=torch.long)
         out += [(x, y, None)]
     return out

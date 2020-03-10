@@ -353,7 +353,6 @@ def init(args):
         (args.pte, args.ptk, args.ptr),
         (args.seed_testset + args.pte, args.seed_kernelset + args.ptk, args.seed_trainset + args.ptr),
         args.d,
-        args.stretching,
         (args.data_param1, args.data_param2),
         args.device,
         torch.get_default_dtype()
@@ -446,14 +445,15 @@ def main():
     parser.add_argument("--ptk", type=int, default=0)
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
-    parser.add_argument("--stretching", type=float, default=None)
     parser.add_argument("--whitening", type=int, default=1)
     parser.add_argument("--data_param1", type=int, default=None, help=
-                        "Sphere dimension if dataset = Cylinder. When combined with stretching, 'non-spherical' dimensions are stretched."
+                        "Sphere dimension if dataset = Cylinder."
                         "Total number of cells, if dataset = sphere_grid. "
                         "n0 if dataset = signal_1d.")
     parser.add_argument("--data_param2", type=int, default=None, help=
-                        "Number of bins in theta, if dataset = sphere_grid. C0 if dataset = signal_1d.")
+                        "Stretching factor for non-spherical dimensions if dataset = cylinder."
+                        "Number of bins in theta, if dataset = sphere_grid."
+                        "C0 if dataset = signal_1d.")
 
     parser.add_argument("--arch", type=str, required=True)
     parser.add_argument("--act", type=str, required=True)
