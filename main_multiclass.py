@@ -1,5 +1,6 @@
 # pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable
 import argparse
+import copy
 import os
 import subprocess
 from functools import partial
@@ -10,7 +11,7 @@ import torch
 from arch import FC
 from arch.swish import swish
 from dataset import get_dataset
-from dynamics import train_regular
+from dynamics import loglinspace, train_regular
 
 
 def loss_func(args, f, y):
@@ -43,12 +44,54 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     best_test_error = 1
     tmp_outputs_index = -1
 
+    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint = next(checkpoint_generator)
+
     wall = perf_counter()
     dynamics = []
     for state, f, otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
         otr = otr - otr0
+
+        save = False
+        save_outputs = False
+        stop = False
+
+        if state['step'] == checkpoint:
+            checkpoint = next(checkpoint_generator)
+            save = True
+        if (otr.argmax(1) != ytr).sum() == 0:
+            save = True
+            save_outputs = True
+            stop = True
+        if torch.isnan(otr).any():
+            save = True
+            stop = True
+
+        if not save:
+            continue
+
         with torch.no_grad():
             ote = f(xte) - ote0
+
+        if args.save_outputs:
+            save_outputs = True
+
+        if wall + args.train_time < perf_counter():
+            save_outputs = True
+            stop = True
+
+        test_err = (ote.argmax(1) != yte).double().mean().item()
+        if test_err < best_test_error:
+            if tmp_outputs_index != -1:
+                dynamics[tmp_outputs_index]['train']['outputs'] = None
+                dynamics[tmp_outputs_index]['train']['labels'] = None
+                dynamics[tmp_outputs_index]['test']['outputs'] = None
+                dynamics[tmp_outputs_index]['test']['labels'] = None
+
+            best_test_error = test_err
+            if not save_outputs:
+                tmp_outputs_index = len(dynamics)
+                save_outputs = True
 
         state['grad_norm'] = grad.norm().item()
         state['wall'] = perf_counter() - wall
@@ -61,38 +104,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
             state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
 
-        save_outputs = False
-        stop = False
-
-        test_err = (ote.argmax(1) != yte).double().mean().item()
-        if test_err < best_test_error:
-            if tmp_outputs_index != -1:
-                dynamics[tmp_outputs_index]['train']['outputs'] = None
-                dynamics[tmp_outputs_index]['train']['labels'] = None
-                dynamics[tmp_outputs_index]['test']['outputs'] = None
-                dynamics[tmp_outputs_index]['test']['labels'] = None
-
-            best_test_error = test_err
-            tmp_outputs_index = len(dynamics)
-            save_outputs = True
-
-        if args.save_outputs:
-            save_outputs = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if (otr.argmax(1) != ytr).sum() == 0:
-            save_outputs = True
-            stop = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if wall + args.train_time < perf_counter():
-            save_outputs = True
-            stop = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
+        state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
             'loss': loss_func(args, otr, ytr).mean().item(),
             'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
@@ -249,6 +261,7 @@ def main():
 
     parser.add_argument("--regular", type=int, default=1)
     parser.add_argument("--save_outputs", type=int, default=0)
+    parser.add_argument("--save_state", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)

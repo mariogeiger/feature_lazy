@@ -23,7 +23,7 @@ def output_gradient(f, loss, x, y, out0, bs):
     return o, grad
 
 
-def train_regular(f0, x, y, tau, alpha, loss, subf0, lr, bs):
+def train_regular(f0, x, y, tau, loss, subf0, lr, bs):
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
@@ -34,37 +34,19 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, lr, bs):
 
     optimizer = ContinuousMomentum(f.parameters(), dt=lr, tau=tau)
 
-    checkpoint_generator = loglinspace(0.01, 100)
-    checkpoint = next(checkpoint_generator)
     t = 0
-    margin = 0
 
     out, grad = output_gradient(f, loss, x, y, out0, bs)
 
     for step in itertools.count():
 
-        save = False
+        state = {
+            'step': step,
+            't': t,
+            'dt': lr,
+        }
 
-        if step == checkpoint:
-            checkpoint = next(checkpoint_generator)
-            assert checkpoint > step
-            save = True
-
-        if y.dtype == out.dtype and (alpha * (out - out0) * y).min() > margin:
-            margin += 0.5
-            save = True
-
-        if torch.isnan(out).any():
-            save = True
-
-        if save:
-            state = {
-                'step': step,
-                't': t,
-                'dt': lr,
-            }
-
-            yield state, f, out, out0, grad
+        yield state, f, out, out0, grad
 
         if torch.isnan(out).any():
             break
@@ -111,12 +93,53 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     torch.manual_seed(args.seed_batch)
 
+    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint = next(checkpoint_generator)
+
     wall = perf_counter()
     dynamics = []
-    for state, f, _otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.lr, args.bs):
+    for state, f, _otr, otr0, grad in train_regular(f0, xtr, ytr, tau, partial(loss_func, args), bool(args.f0), args.lr, args.bs):
+        save = False
+        save_outputs = False
+        stop = False
+
+        if state['step'] == checkpoint:
+            checkpoint = next(checkpoint_generator)
+            save = True
+        if torch.isnan(_otr).any():
+            save = True
+            stop = True
+
+        if not save:
+            continue
+
         with torch.no_grad():
             otr = f(xtr) - otr0
             ote = f(xte) - ote0
+
+        if args.save_outputs:
+            save_outputs = True
+
+        if (otr.argmax(1) != ytr).sum() == 0:
+            save_outputs = True
+            stop = True
+
+        if wall + args.train_time < perf_counter():
+            save_outputs = True
+            stop = True
+
+        test_err = (ote.argmax(1) != yte).double().mean().item()
+        if test_err < best_test_error:
+            if tmp_outputs_index != -1:
+                dynamics[tmp_outputs_index]['train']['outputs'] = None
+                dynamics[tmp_outputs_index]['train']['labels'] = None
+                dynamics[tmp_outputs_index]['test']['outputs'] = None
+                dynamics[tmp_outputs_index]['test']['labels'] = None
+
+            best_test_error = test_err
+            if not save_outputs:
+                tmp_outputs_index = len(dynamics)
+                save_outputs = True
 
         state['grad_norm'] = grad.norm().item()
         state['wall'] = perf_counter() - wall
@@ -129,38 +152,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
             state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
 
-        save_outputs = False
-        stop = False
-
-        test_err = (ote.argmax(1) != yte).double().mean().item()
-        if test_err < best_test_error:
-            if tmp_outputs_index != -1:
-                dynamics[tmp_outputs_index]['train']['outputs'] = None
-                dynamics[tmp_outputs_index]['train']['labels'] = None
-                dynamics[tmp_outputs_index]['test']['outputs'] = None
-                dynamics[tmp_outputs_index]['test']['labels'] = None
-
-            best_test_error = test_err
-            tmp_outputs_index = len(dynamics)
-            save_outputs = True
-
-        if args.save_outputs:
-            save_outputs = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if (otr.argmax(1) != ytr).sum() == 0:
-            save_outputs = True
-            stop = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if wall + args.train_time < perf_counter():
-            save_outputs = True
-            stop = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
+        state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
             'loss': loss_func(args, otr, ytr).mean().item(),
             'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
@@ -317,6 +309,7 @@ def main():
 
     parser.add_argument("--regular", type=int, default=1)
     parser.add_argument("--save_outputs", type=int, default=0)
+    parser.add_argument("--save_state", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
