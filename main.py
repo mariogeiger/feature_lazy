@@ -12,7 +12,7 @@ from arch import CV, FC, FixedAngles, FixedWeights, Wide_ResNet
 from arch.mnas import MnasNetLike
 from arch.swish import swish
 from dataset import get_binary_dataset
-from dynamics import train_kernel, train_regular
+from dynamics import train_kernel, train_regular, loglinspace
 from kernels import compute_kernels
 
 
@@ -56,21 +56,31 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
 
     margin = 0
 
+    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint = next(checkpoint_generator)
+
     wall = perf_counter()
     dynamics = []
     for state, otr, _velo, grad in train_kernel(ktrtr, ytr, tau, args.alpha, partial(loss_func_prime, args), args.max_dgrad, args.max_dout):
-
-        state['grad_norm'] = grad.norm().item()
-        state['wall'] = perf_counter() - wall
-
+        save = False
         save_outputs = False
         stop = False
 
-        if args.save_outputs:
-            save_outputs = True
-
+        if state['step'] == checkpoint:
+            checkpoint = next(checkpoint_generator)
+            save = True
         if (args.alpha * otr * ytr).min() > margin:
             margin += 0.5
+            save = True
+            save_outputs = True
+        if torch.isnan(otr).any():
+            save = True
+            stop = True
+
+        if not save:
+            continue
+
+        if args.save_outputs:
             save_outputs = True
 
         if (args.alpha * otr * ytr).min() > args.stop_margin:
@@ -80,6 +90,9 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
         if wall + args.train_time < perf_counter():
             save_outputs = True
             stop = True
+
+        state['grad_norm'] = grad.norm().item()
+        state['wall'] = perf_counter() - wall
 
         state['train'] = {
             'loss': loss_func(args, otr, ytr).mean().item(),
@@ -159,12 +172,58 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     tmp_outputs_index = -1
     margin = 0
 
+    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint = next(checkpoint_generator)
+
     wall = perf_counter()
     dynamics = []
     for state, f, otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
         otr = otr - otr0
+
+        save = False
+        save_outputs = False
+        stop = False
+
+        if state['step'] == checkpoint:
+            checkpoint = next(checkpoint_generator)
+            save = True
+        if (args.alpha * otr * ytr).min() > margin:
+            margin += 0.5
+            save = True
+            save_outputs = True
+        if torch.isnan(otr).any():
+            save = True
+            stop = True
+
+        if not save:
+            continue
+
         with torch.no_grad():
             ote = f(xte) - ote0
+
+        if args.save_outputs:
+            save_outputs = True
+
+        if (args.alpha * otr * ytr).min() > args.stop_margin:
+            save_outputs = True
+            stop = True
+
+        if wall + args.train_time < perf_counter():
+            save_outputs = True
+            stop = True
+
+        test_err = (ote * yte <= 0).double().mean().item()
+        if test_err < best_test_error:
+            if tmp_outputs_index != -1:
+                dynamics[tmp_outputs_index]['train']['outputs'] = None
+                dynamics[tmp_outputs_index]['train']['labels'] = None
+                dynamics[tmp_outputs_index]['test']['outputs'] = None
+                dynamics[tmp_outputs_index]['test']['labels'] = None
+
+            best_test_error = test_err
+            if not save_outputs:
+                tmp_outputs_index = len(dynamics)
+                save_outputs = True
 
         state['grad_norm'] = grad.norm().item()
         state['wall'] = perf_counter() - wall
@@ -176,44 +235,6 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 return torch.cat(list(getattr(f.f, "W{}".format(i))))
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
             state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
-
-        save_outputs = False
-        stop = False
-
-        test_err = (ote * yte <= 0).double().mean().item()
-        if test_err < best_test_error:
-            if tmp_outputs_index != -1:
-                dynamics[tmp_outputs_index]['train']['outputs'] = None
-                dynamics[tmp_outputs_index]['train']['labels'] = None
-                dynamics[tmp_outputs_index]['test']['outputs'] = None
-                dynamics[tmp_outputs_index]['test']['labels'] = None
-
-            best_test_error = test_err
-            tmp_outputs_index = len(dynamics)
-            save_outputs = True
-
-        if args.save_outputs:
-            save_outputs = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if (args.alpha * otr * ytr).min() > margin:
-            margin += 0.5
-            save_outputs = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if (args.alpha * otr * ytr).min() > args.stop_margin:
-            save_outputs = True
-            stop = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if wall + args.train_time < perf_counter():
-            save_outputs = True
-            stop = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
