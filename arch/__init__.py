@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 
 class FC(nn.Module):
-    def __init__(self, d, h, c, L, act, bias=False):
+    def __init__(self, d, h, c, L, act, bias=False, var_bias=0):
         super().__init__()
 
         hh = d
@@ -27,12 +27,12 @@ class FC(nn.Module):
 
             setattr(self, "W{}".format(i), W)
             if bias:
-                self.register_parameter("B{}".format(i), nn.Parameter(torch.zeros(h)))
+                self.register_parameter("B{}".format(i), nn.Parameter(torch.randn(h).mul(var_bias**0.5)))
             hh = h
 
         self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(c, hh)))
         if bias:
-            self.register_parameter("B{}".format(L), nn.Parameter(torch.zeros(c)))
+            self.register_parameter("B{}".format(L), nn.Parameter(torch.randn(c).mul(var_bias**0.5)))
 
         self.L = L
         self.act = act

@@ -388,7 +388,7 @@ def init(args):
         xtr = xtr.flatten(1)
         xtk = xtk.flatten(1)
         xte = xte.flatten(1)
-        f = FC(xtr.size(1), args.h, 1, args.L, act, args.bias)
+        f = FC(xtr.size(1), args.h, 1, args.L, act, args.bias, args.var_bias)
     elif args.arch == 'cv':
         assert args.bias == 0
         f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base,
@@ -451,6 +451,7 @@ def main():
     parser.add_argument("--act", type=str, required=True)
     parser.add_argument("--act_beta", type=float, default=5.0)
     parser.add_argument("--bias", type=float, default=0)
+    parser.add_argument("--var_bias", type=float, default=0)
     parser.add_argument("--L", type=int)
     parser.add_argument("--h", type=int, required=True)
     parser.add_argument("--mix_angle", type=float, default=45)
