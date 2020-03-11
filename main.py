@@ -62,34 +62,25 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
     wall = perf_counter()
     dynamics = []
     for state, otr, _velo, grad in train_kernel(ktrtr, ytr, tau, args.alpha, partial(loss_func_prime, args), args.max_dgrad, args.max_dout):
-        save = False
-        save_outputs = False
-        stop = False
+        save_outputs = args.save_outputs
+        save = stop = False
 
         if state['step'] == checkpoint:
             checkpoint = next(checkpoint_generator)
             save = True
-        if (args.alpha * otr * ytr).min() > margin:
-            margin += 0.5
-            save = True
-            save_outputs = True
         if torch.isnan(otr).any():
-            save = True
-            stop = True
+            save = stop = True
+        if wall + args.train_time < perf_counter():
+            save = save_outputs = stop = True
+        mind = (args.alpha * otr * ytr).min().item()
+        if mind > margin:
+            margin += 0.5
+            save = save_outputs = True
+        if mind > args.stop_margin:
+            save = save_outputs = stop = True
 
         if not save:
             continue
-
-        if args.save_outputs:
-            save_outputs = True
-
-        if (args.alpha * otr * ytr).min() > args.stop_margin:
-            save_outputs = True
-            stop = True
-
-        if wall + args.train_time < perf_counter():
-            save_outputs = True
-            stop = True
 
         state['grad_norm'] = grad.norm().item()
         state['wall'] = perf_counter() - wall
@@ -180,37 +171,28 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     for state, f, otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
         otr = otr - otr0
 
-        save = False
-        save_outputs = False
-        stop = False
+        save_outputs = args.save_outputs
+        save = stop = False
 
         if state['step'] == checkpoint:
             checkpoint = next(checkpoint_generator)
             save = True
-        if (args.alpha * otr * ytr).min() > margin:
-            margin += 0.5
-            save = True
-            save_outputs = True
         if torch.isnan(otr).any():
-            save = True
-            stop = True
+            save = stop = True
+        if wall + args.train_time < perf_counter():
+            save = save_outputs = stop = True
+        mind = (args.alpha * otr * ytr).min().item()
+        if mind > margin:
+            margin += 0.5
+            save = save_outputs = True
+        if mind > args.stop_margin:
+            save = save_outputs = stop = True
 
         if not save:
             continue
 
         with torch.no_grad():
             ote = f(xte) - ote0
-
-        if args.save_outputs:
-            save_outputs = True
-
-        if (args.alpha * otr * ytr).min() > args.stop_margin:
-            save_outputs = True
-            stop = True
-
-        if wall + args.train_time < perf_counter():
-            save_outputs = True
-            stop = True
 
         test_err = (ote * yte <= 0).double().mean().item()
         if test_err < best_test_error:
