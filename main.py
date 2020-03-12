@@ -249,9 +249,16 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'outputs': ote if save_outputs else None,
             'labels': yte if save_outputs else None,
         }
-        print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] "
-              + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{p} mind={d[train][mind]:.3f}] "
-              + "[test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]").format(d=state, p=len(ytr)), flush=True)
+        print(
+            (
+                "[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] "
+                + "[dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] "
+                + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} "
+                + "nd={d[train][nd]}/{p} mind={d[train][mind]:.3f}] "
+                + "[test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]"
+            ).format(d=state, p=len(ytr)),
+            flush=True
+        )
         dynamics.append(state)
 
         out = {
@@ -371,20 +378,23 @@ def init(args):
     torch.manual_seed(0)
 
     if args.act == 'relu':
-        def act(x):
-            return torch.relu(x).mul(2 ** 0.5)
+        _act = torch.relu
     elif args.act == 'tanh':
-        def act(x):
-            return torch.tanh(x).mul(1.5927116424039378)
+        _act = torch.tanh
     elif args.act == 'softplus':
-        factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.act_beta).pow(2).mean().rsqrt().item()
-
-        def act(x):
-            return torch.nn.functional.softplus(x, beta=args.act_beta).mul(factor)
+        _act = torch.nn.functional.softplus
     elif args.act == 'swish':
-        act = swish
+        _act = swish
     else:
         raise ValueError('act not specified')
+
+    def __act(x):
+        b = args.act_beta
+        return _act(b * x) / b
+    factor = __act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item()
+
+    def act(x):
+        return __act(x) * factor
 
     _d = abs(act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item() - 1)
     assert _d < 1e-2, _d
@@ -397,6 +407,7 @@ def init(args):
         xtk = xtk.flatten(1)
         xte = xte.flatten(1)
         f = FC(xtr.size(1), args.h, 1, args.L, act, args.bias, args.var_bias)
+
     elif args.arch == 'cv':
         assert args.bias == 0
         f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base,
@@ -406,7 +417,7 @@ def init(args):
         f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle)
     elif args.arch == 'mnas':
         assert args.act == 'swish'
-        f = MnasNetLike(xtr.size(1), args.h, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2)
+        f = MnasNetLike(xtr.size(1), args.h, 1, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2)
     elif args.arch == 'fixed_weights':
         f = FixedWeights(args.d, args.h, act, args.bias)
     elif args.arch == 'fixed_angles':
@@ -457,7 +468,7 @@ def main():
 
     parser.add_argument("--arch", type=str, required=True)
     parser.add_argument("--act", type=str, required=True)
-    parser.add_argument("--act_beta", type=float, default=5.0)
+    parser.add_argument("--act_beta", type=float, default=1.0)
     parser.add_argument("--bias", type=float, default=0)
     parser.add_argument("--var_bias", type=float, default=0)
     parser.add_argument("--L", type=int)
