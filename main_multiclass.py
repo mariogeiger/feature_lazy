@@ -262,6 +262,8 @@ def main():
     parser.add_argument("--var_bias", type=float, default=0)
     parser.add_argument("--L", type=int)
     parser.add_argument("--h", type=int, required=True)
+    parser.add_argument("--cv_L1", type=int, default=2)
+    parser.add_argument("--cv_L2", type=int, default=2)
 
     parser.add_argument("--regular", type=int, default=1)
     parser.add_argument("--save_outputs", type=int, default=0)
