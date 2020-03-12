@@ -58,7 +58,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, otr,     velo, grad in train_kernel(ktrtr, ytr, tau, args.alpha, partial(loss_func_prime, args), args.max_dgrad, args.max_dout):
+    for state, otr, _velo, grad in train_kernel(ktrtr, ytr, tau, args.alpha, partial(loss_func_prime, args), args.max_dgrad, args.max_dout):
 
         state['grad_norm'] = grad.norm().item()
         state['wall'] = perf_counter() - wall
