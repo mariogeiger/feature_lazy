@@ -58,7 +58,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, otr, _velo, grad in train_kernel(ktrtr, ytr, tau, args.alpha, partial(loss_func_prime, args), args.max_dgrad, args.max_dout):
+    for state, otr,     velo, grad in train_kernel(ktrtr, ytr, tau, args.alpha, partial(loss_func_prime, args), args.max_dgrad, args.max_dout):
 
         state['grad_norm'] = grad.norm().item()
         state['wall'] = perf_counter() - wall
@@ -73,7 +73,8 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             margin += 0.5
             save_outputs = True
 
-        if (args.alpha * otr * ytr).min() > args.stop_margin:
+        # changed stop criterion to having <= stop_nd*ptr points inside loss margin
+        if (args.alpha * otr * ytr < args.stop_margin).long().sum().item() <= args.stop_nd * args.ptr:
             save_outputs = True
             stop = True
 
@@ -203,7 +204,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             if tmp_outputs_index == len(dynamics):
                 tmp_outputs_index = -1
 
-        if (args.alpha * otr * ytr).min() > args.stop_margin:
+        # changed stop criterion to having <= stop_nd*ptr points inside loss margin
+        if (args.alpha * otr * ytr < args.stop_margin).long().sum().item() <= args.stop_nd * args.ptr:
             save_outputs = True
             stop = True
             if tmp_outputs_index == len(dynamics):
@@ -495,6 +497,7 @@ def main():
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
+    parser.add_argument("--stop_nd", type=float, default=0.0)
 
     parser.add_argument("--pickle", type=str, required=True)
     args = parser.parse_args()

@@ -107,7 +107,7 @@ class Conv1d(nn.Module):
         super().__init__()
 
         self.W = nn.Parameter(torch.randn(h,1,d))
-        self.B = nn.Parameter(torch.zeros(h))
+        self.B = nn.Parameter(torch.randn(h))
         self.C = nn.Parameter(torch.randn(h))
 
         self.act = act

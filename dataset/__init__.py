@@ -223,7 +223,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             n0 = 1 if params[0] is None else params[0]
             C0 = n0 * inverf2(1/2) if params[1] is None else params[1]
             r = torch.linspace(0, 2*math.pi, d).reshape(-1, 1).repeat(1, p)
-            x = torch.zeros(p, d)
+            x = torch.randn(p, d)
             a = torch.randn(p, n0)
             b = torch.randn(p, n0)
             # pattern psi: cos(r)
