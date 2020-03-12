@@ -17,6 +17,8 @@ from kernels import compute_kernels
 
 
 def loss_func(args, f, y):
+    if args.loss == 'hinge':
+        return (args.loss_margin - args.alpha * f * y).relu() / args.alpha
     if args.loss == 'softhinge':
         sp = partial(torch.nn.functional.softplus, beta=args.loss_beta)
         return sp(args.loss_margin - args.alpha * f * y) / args.alpha
@@ -25,6 +27,8 @@ def loss_func(args, f, y):
 
 
 def loss_func_prime(args, f, y):
+    if args.loss == 'hinge':
+        return -((args.loss_margin - args.alpha * f * y) > 0) * y
     if args.loss == 'softhinge':
         return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * f * y)) * y
     if args.loss == 'qhinge':
@@ -160,6 +164,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         tau *= min(1, args.tau_alpha_crit / args.alpha)
 
     best_test_error = 1
+    wall_best_test_error = perf_counter()
     tmp_outputs_index = -1
     margin = 0
 
@@ -180,6 +185,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         if torch.isnan(otr).any():
             save = stop = True
         if wall + args.train_time < perf_counter():
+            save = save_outputs = stop = True
+        if args.wall_max_early_stopping is not None and wall_best_test_error + args.wall_max_early_stopping < perf_counter():
             save = save_outputs = stop = True
         mind = (args.alpha * otr * ytr).min().item()
         if mind > margin:
@@ -203,6 +210,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 dynamics[tmp_outputs_index]['test']['labels'] = None
 
             best_test_error = test_err
+            wall_best_test_error = perf_counter()
             if not save_outputs:
                 tmp_outputs_index = len(dynamics)
                 save_outputs = True
@@ -480,6 +488,7 @@ def main():
     parser.add_argument("--tau_alpha_crit", type=float)
 
     parser.add_argument("--train_time", type=float, required=True)
+    parser.add_argument("--wall_max_early_stopping", type=float)
     parser.add_argument("--chunk", type=int)
     parser.add_argument("--max_dgrad", type=float, default=1e-4)
     parser.add_argument("--max_dout", type=float, default=1e-1)
