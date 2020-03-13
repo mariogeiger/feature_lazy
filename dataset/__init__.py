@@ -182,8 +182,8 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             r = x.norm(dim=1)
             y = (r**2 > d - 2 / 3)
         if dataset == 'cylinder':
-            dsph = d // 2 if params[0] is None else params[0]
-            stretching = 1 if params[1] is None else params[1]
+            dsph = int(params[0])
+            stretching = params[1]
             x[:, dsph:] *= stretching
             r = x[:, :dsph].norm(dim=1)
             y = (r**2 > dsph - 2 / 3)
@@ -198,8 +198,8 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             y = (x > 0).all(1)
         if dataset == 'sphere_grid':
             assert d == 2, "Spherical grid is only implemented in 2D"
-            bins = 500 if params[0] is None else params[0]
-            theta_bins = 50 if params[1] is None else params[1]
+            bins = int(params[0])
+            theta_bins = int(params[1])
             assert p % bins == 0, f"p needs to be multiple of {bins}, number of bins"
             assert p % theta_bins == 0, f"p needs to be multiple of {theta_bins}, number of angular bins"
             r_bins = bins // theta_bins
@@ -220,8 +220,8 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             y = r > r_spacing[len(r_spacing) // 2]
 
         if dataset == 'signal_1d':
-            n0 = 1 if params[0] is None else params[0]
-            C0 = n0 * inverf2(1/2) if params[1] is None else params[1]
+            n0 = int(params[0])
+            C0 = n0 * inverf2(1/2)
             r = torch.linspace(0, 2*math.pi, d).reshape(-1, 1).repeat(1, p)
             x = torch.randn(p, d)
             a = torch.randn(p, n0)
