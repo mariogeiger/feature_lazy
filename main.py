@@ -73,7 +73,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             margin += 0.5
             save_outputs = True
 
-        if (args.alpha * otr * ytr).min().item() < args.stop_margin:
+        if (args.alpha * otr * ytr).min().item() > args.stop_margin:
             save_outputs = True
             stop = True
 
@@ -203,7 +203,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             if tmp_outputs_index == len(dynamics):
                 tmp_outputs_index = -1
 
-        if (args.alpha * otr * ytr).min().item() < args.stop_margin:
+        if (args.alpha * otr * ytr).min().item() > args.stop_margin:
             save_outputs = True
             stop = True
             if tmp_outputs_index == len(dynamics):
