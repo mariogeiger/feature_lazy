@@ -102,6 +102,26 @@ class FixedAngles(nn.Module):
         return self.act(x @ ((self.r * self.W0).T / d**0.5) + B) @ (self.W / h)
 
 
+class Conv1d(nn.Module):
+    def __init__(self, d, h, act, bias):
+        super().__init__()
+
+        self.W = nn.Parameter(torch.randn(h,1,d))
+        self.B = nn.Parameter(torch.randn(h))
+        self.C = nn.Parameter(torch.randn(h))
+
+        self.act = act
+        self.bias = bias
+
+    def forward(self, x):
+        d = x.size(1)
+        B = self.bias * self.B
+        h = len(B)
+        x = torch.cat((x, x[:, :-1]), dim=1)
+        x = x.reshape(x.size(0), 1, d + d-1)
+        return (self.act(F.conv1d(x, self.W / d**0.5, B)).sum(dim=2) / d) @ (self.C / h)
+
+
 class CV(nn.Module):
     def __init__(self, d, h, L1, L2, act, h_base, fsz, pad, stride_first):
         super().__init__()

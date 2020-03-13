@@ -8,7 +8,7 @@ from time import perf_counter
 
 import torch
 
-from arch import CV, FC, FixedAngles, FixedWeights, Wide_ResNet
+from arch import CV, FC, FixedAngles, FixedWeights, Wide_ResNet, Conv1d
 from arch.mnas import MnasNetLike
 from arch.swish import swish
 from dataset import get_binary_dataset
@@ -371,6 +371,7 @@ def init(args):
         (args.pte, args.ptk, args.ptr),
         (args.seed_testset + args.pte, args.seed_kernelset + args.ptk, args.seed_trainset + args.ptr),
         args.d,
+        (args.data_param1, args.data_param2),
         args.device,
         torch.get_default_dtype()
     )
@@ -422,6 +423,8 @@ def init(args):
         f = FixedWeights(args.d, args.h, act, args.bias)
     elif args.arch == 'fixed_angles':
         f = FixedAngles(args.d, args.h, act, args.bias)
+    elif args.arch == 'conv1d':
+        f = Conv1d(args.d, args.h, act, args.bias)
     else:
         raise ValueError('arch not specified')
 
@@ -465,6 +468,13 @@ def main():
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
     parser.add_argument("--whitening", type=int, default=1)
+    parser.add_argument("--data_param1", type=int, help=
+                        "Sphere dimension if dataset = Cylinder."
+                        "Total number of cells, if dataset = sphere_grid. "
+                        "n0 if dataset = signal_1d.")
+    parser.add_argument("--data_param2", type=float, help=
+                        "Stretching factor for non-spherical dimensions if dataset = cylinder."
+                        "Number of bins in theta, if dataset = sphere_grid.")
 
     parser.add_argument("--arch", type=str, required=True)
     parser.add_argument("--act", type=str, required=True)

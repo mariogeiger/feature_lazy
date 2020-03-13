@@ -9,15 +9,23 @@ import functools
 import math
 from itertools import chain
 
+import math
 import scipy.special
 import torch
+import torch.nn.functional as F
+
+def inverf2(x):
+    """ Inverse error function in 2d."""
+    if 'torch' not in str(type(x)):
+        x = torch.tensor(x)
+    return (-2 * (1 - x).log()).sqrt()
 
 
 def pca(x, d, whitening):
-    '''
+    """
     :param x: [P, ...]
     :return: [P, d]
-    '''
+    """
 
     z = x.flatten(1)
     mu = z.mean(0)
@@ -53,8 +61,8 @@ def pca(x, d, whitening):
 #     return (xtr, ytr), (xte, yte)
 
 
-def get_dataset(dataset, ps, seeds, d, device=None, dtype=None):
-    sets = get_normalized_dataset(dataset, ps, seeds, d)
+def get_dataset(dataset, ps, seeds, d, params=None, device=None, dtype=None):
+    sets = get_normalized_dataset(dataset, ps, seeds, d, params)
 
     outs = []
     for x, y, i in sets:
@@ -65,8 +73,8 @@ def get_dataset(dataset, ps, seeds, d, device=None, dtype=None):
     return outs
 
 
-def get_binary_dataset(dataset, ps, seeds, d, device=None, dtype=None):
-    sets = get_normalized_dataset(dataset, ps, seeds, d)
+def get_binary_dataset(dataset, ps, seeds, d, params=None, device=None, dtype=None):
+    sets = get_normalized_dataset(dataset, ps, seeds, d, params)
 
     outs = []
     for x, y, i in sets:
@@ -86,7 +94,7 @@ def get_binary_dataset(dataset, ps, seeds, d, device=None, dtype=None):
 
 
 @functools.lru_cache(maxsize=2)
-def get_normalized_dataset(dataset, ps, seeds, d=0):
+def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
     import torchvision
 
     transform = torchvision.transforms.ToTensor()
@@ -173,6 +181,12 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
         if dataset == 'sphere':
             r = x.norm(dim=1)
             y = (r**2 > d - 2 / 3)
+        if dataset == 'cylinder':
+            dsph = int(params[0])
+            stretching = params[1]
+            x[:, dsph:] *= stretching
+            r = x[:, :dsph].norm(dim=1)
+            y = (r**2 > dsph - 2 / 3)
         if dataset == 'cube':
             a = scipy.special.erfinv(0.5**(1 / d)) * 2**0.5
             y = (x.abs() < a).all(1)
@@ -182,6 +196,41 @@ def get_normalized_dataset(dataset, ps, seeds, d=0):
             y = (x[:, 0] > 0) * (x[:, 1] > 0)
         if dataset == 'andD':  # multi-dimensional AND logic gate (all d dimensions are relevant)
             y = (x > 0).all(1)
+        if dataset == 'sphere_grid':
+            assert d == 2, "Spherical grid is only implemented in 2D"
+            bins = int(params[0])
+            theta_bins = int(params[1])
+            assert p % bins == 0, f"p needs to be multiple of {bins}, number of bins"
+            assert p % theta_bins == 0, f"p needs to be multiple of {theta_bins}, number of angular bins"
+            r_bins = bins // theta_bins
+            ppc = p // bins # points per cell
+
+            r_spacing = inverf2(torch.arange(r_bins).double().div_(r_bins))
+            # cutting the last bin of the gaussian which would go to infinity
+            infty = 4.0
+            r_spacing = torch.cat((r_spacing, torch.ones(1) * infty))
+            r_diff = r_spacing[1:] - r_spacing[:-1]
+            x = torch.zeros(p, d)
+            for i in range(bins):
+                theta = (torch.rand(ppc) + (i % theta_bins)) / theta_bins * 2 * math.pi
+                r = torch.rand(ppc) * r_diff[i // theta_bins] + r_spacing[i // theta_bins]
+                x[i * ppc:(i + 1) * ppc, 0] = r.mul(theta.cos())
+                x[i * ppc:(i + 1) * ppc, 1] = r.mul(theta.sin())
+            r = x.norm(dim=1)
+            y = r > r_spacing[len(r_spacing) // 2]
+
+        if dataset == 'signal_1d':
+            n0 = int(params[0])
+            C0 = n0 * inverf2(1/2)
+            r = torch.linspace(0, 2*math.pi, d).reshape(-1, 1).repeat(1, p)
+            x = torch.randn(p, d)
+            a = torch.randn(p, n0)
+            b = torch.randn(p, n0)
+            # pattern psi: cos(r)
+            psi = r[:, 0].cos().reshape(1, 1, -1) / d
+            for k in range(1, n0+1):
+                x += (a[:, k-1].mul((k * r).cos()) + b[:, k-1].mul((k * r).sin())).T
+            y = 2 * F.conv1d(torch.cat((x, x[:, :-1]), dim=1).reshape(p, 1, -1), psi).max(dim=2).values.reshape(-1) - C0 > 0
         y = y.to(dtype=torch.long)
         out += [(x, y, None)]
     return out

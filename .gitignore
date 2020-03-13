@@ -6,3 +6,4 @@ stderr
 info
 *.png
 __pycache__
+*.sh
