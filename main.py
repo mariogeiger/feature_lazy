@@ -73,8 +73,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             margin += 0.5
             save_outputs = True
 
-        # changed stop criterion to having <= stop_nd*ptr points inside loss margin
-        if (args.alpha * otr * ytr < args.stop_margin).long().sum().item() <= args.stop_nd * args.ptr:
+        if (args.alpha * otr * ytr).min().item() < args.stop_margin:
             save_outputs = True
             stop = True
 
@@ -204,8 +203,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             if tmp_outputs_index == len(dynamics):
                 tmp_outputs_index = -1
 
-        # changed stop criterion to having <= stop_nd*ptr points inside loss margin
-        if (args.alpha * otr * ytr < args.stop_margin).long().sum().item() <= args.stop_nd * args.ptr:
+        if (args.alpha * otr * ytr).min().item() < args.stop_margin:
             save_outputs = True
             stop = True
             if tmp_outputs_index == len(dynamics):
@@ -497,7 +495,6 @@ def main():
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
-    parser.add_argument("--stop_nd", type=float, default=0.0)
 
     parser.add_argument("--pickle", type=str, required=True)
     args = parser.parse_args()
