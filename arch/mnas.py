@@ -111,7 +111,7 @@ class Mem:
 
 
 class MnasNetLike(nn.Module):
-    def __init__(self, d, h, n_blocks=2, n_layers=2, dim=2):
+    def __init__(self, d, h, cl, n_blocks=2, n_layers=2, dim=2):
         super().__init__()
         c = Mem()
 
@@ -134,7 +134,7 @@ class MnasNetLike(nn.Module):
         if dim == 2:
             self.global_pool = nn.AdaptiveAvgPool2d(1)
 
-        self.classifier = NTKLinear(c(), 1, bias=True)
+        self.classifier = NTKLinear(c(), cl, bias=True)
 
     def forward(self, x):
         x = self.conv_stem(x)
@@ -145,4 +145,6 @@ class MnasNetLike(nn.Module):
         x = self.global_pool(x)
         x = x.flatten(1)
         x = self.classifier(x)
-        return x.view(-1)
+        if x.shape[1] == 1:
+            return x.view(-1)
+        return x

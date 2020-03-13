@@ -18,11 +18,11 @@ import torch
 from hessian import gradient
 
 
-def loglinspace(rate, step, end=None):
+def loglinspace(step, tau, end=None):
     t = 0
     while end is None or t <= end:
         yield t
-        t = int(t + 1 + step * (1 - math.exp(-t * rate / step)))
+        t = int(t + 1 + step * (1 - math.exp(-t / tau)))
 
 
 class ContinuousMomentum(torch.optim.Optimizer):
@@ -127,40 +127,22 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
     step_change_dt = 0
     optimizer = ContinuousMomentum(f.parameters(), dt=dt, tau=tau)
 
-    checkpoint_generator = loglinspace(0.01, 100)
-    checkpoint = next(checkpoint_generator)
     t = 0
-    margin = 0
 
     out, grad = output_gradient(f, loss, x, y, out0, chunk)
     dgrad, dout = 0, 0
 
     for step in itertools.count():
 
-        save = False
+        state = {
+            'step': step,
+            't': t,
+            'dt': current_dt,
+            'dgrad': dgrad,
+            'dout': dout,
+        }
 
-        if step == checkpoint:
-            checkpoint = next(checkpoint_generator)
-            assert checkpoint > step
-            save = True
-
-        if y.dtype == out.dtype and (alpha * (out - out0) * y).min() > margin:
-            margin += 0.5
-            save = True
-
-        if torch.isnan(out).any():
-            save = True
-
-        if save:
-            state = {
-                'step': step,
-                't': t,
-                'dt': current_dt,
-                'dgrad': dgrad,
-                'dout': dout,
-            }
-
-            yield state, f, out, out0, grad
+        yield state, f, out, out0, grad
 
         if torch.isnan(out).any():
             break
@@ -206,11 +188,8 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
     dt = 1
     step_change_dt = 0
 
-    checkpoint_generator = loglinspace(0.01, 100)
-    checkpoint = next(checkpoint_generator)
     t = 0
     current_dt = 0
-    margin = 0
 
     lprim = loss_prim(otr, ytr)
     grad = ktrtr @ lprim / len(ytr)
@@ -218,30 +197,15 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
 
     for step in itertools.count():
 
-        save = False
+        state = {
+            'step': step,
+            't': t,
+            'dt': current_dt,
+            'dgrad': dgrad,
+            'dout': dout,
+        }
 
-        if step == checkpoint:
-            checkpoint = next(checkpoint_generator)
-            assert checkpoint > step
-            save = True
-
-        if (alpha * otr * ytr > margin).all():
-            margin += 0.5
-            save = True
-
-        if torch.isnan(otr).any():
-            save = True
-
-        if save:
-            state = {
-                'step': step,
-                't': t,
-                'dt': current_dt,
-                'dgrad': dgrad,
-                'dout': dout,
-            }
-
-            yield state, otr, velo, grad
+        yield state, otr, velo, grad
 
         if torch.isnan(otr).any():
             break

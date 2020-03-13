@@ -1,5 +1,6 @@
 # pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable
 import argparse
+import copy
 import os
 import subprocess
 from functools import partial
@@ -8,9 +9,10 @@ from time import perf_counter
 import torch
 
 from arch import FC
+from arch.mnas import MnasNetLike
 from arch.swish import swish
 from dataset import get_dataset
-from dynamics import train_regular
+from dynamics import loglinspace, train_regular
 
 
 def loss_func(args, f, y):
@@ -41,14 +43,51 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         tau *= min(1, args.tau_alpha_crit / args.alpha)
 
     best_test_error = 1
+    wall_best_test_error = perf_counter()
     tmp_outputs_index = -1
+
+    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint = next(checkpoint_generator)
 
     wall = perf_counter()
     dynamics = []
     for state, f, otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
         otr = otr - otr0
+
+        save_outputs = args.save_outputs
+        save = stop = False
+
+        if state['step'] == checkpoint:
+            checkpoint = next(checkpoint_generator)
+            save = True
+        if torch.isnan(otr).any():
+            save = stop = True
+        if wall + args.train_time < perf_counter():
+            save = save_outputs = stop = True
+        if args.wall_max_early_stopping is not None and wall_best_test_error + args.wall_max_early_stopping < perf_counter():
+            save = save_outputs = stop = True
+        if (otr.argmax(1) != ytr).sum() == 0:
+            save = save_outputs = stop = True
+
+        if not save:
+            continue
+
         with torch.no_grad():
             ote = f(xte) - ote0
+
+        test_err = (ote.argmax(1) != yte).double().mean().item()
+        if test_err < best_test_error:
+            if tmp_outputs_index != -1:
+                dynamics[tmp_outputs_index]['train']['outputs'] = None
+                dynamics[tmp_outputs_index]['train']['labels'] = None
+                dynamics[tmp_outputs_index]['test']['outputs'] = None
+                dynamics[tmp_outputs_index]['test']['labels'] = None
+
+            best_test_error = test_err
+            wall_best_test_error = perf_counter()
+            if not save_outputs:
+                tmp_outputs_index = len(dynamics)
+                save_outputs = True
 
         state['grad_norm'] = grad.norm().item()
         state['wall'] = perf_counter() - wall
@@ -61,38 +100,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
             state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
 
-        save_outputs = False
-        stop = False
-
-        test_err = (ote.argmax(1) != yte).double().mean().item()
-        if test_err < best_test_error:
-            if tmp_outputs_index != -1:
-                dynamics[tmp_outputs_index]['train']['outputs'] = None
-                dynamics[tmp_outputs_index]['train']['labels'] = None
-                dynamics[tmp_outputs_index]['test']['outputs'] = None
-                dynamics[tmp_outputs_index]['test']['labels'] = None
-
-            best_test_error = test_err
-            tmp_outputs_index = len(dynamics)
-            save_outputs = True
-
-        if args.save_outputs:
-            save_outputs = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if (otr.argmax(1) != ytr).sum() == 0:
-            save_outputs = True
-            stop = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
-        if wall + args.train_time < perf_counter():
-            save_outputs = True
-            stop = True
-            if tmp_outputs_index == len(dynamics):
-                tmp_outputs_index = -1
-
+        state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
             'loss': loss_func(args, otr, ytr).mean().item(),
             'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
@@ -115,7 +123,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             (
                 "[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] "
                 + "[dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] "
-                + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f}] "
+                + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} "
+                + "] "
                 + "[test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]"
             ).format(d=state, p=len(ytr)),
             flush=True
@@ -140,14 +149,12 @@ def run_exp(args, f0, xtr, ytr, xte, yte):
 
     if args.regular == 1:
         wall = perf_counter()
-
-        for _f, out in run_regular(args, f0, xtr, ytr, xte, yte):
+        for f, out in run_regular(args, f0, xtr, ytr, xte, yte):
             run['regular'] = out
 
             if perf_counter() - wall > 120:
                 wall = perf_counter()
                 yield run
-
         yield run
 
     run['finished'] = True
@@ -173,20 +180,23 @@ def init(args):
     torch.manual_seed(0)
 
     if args.act == 'relu':
-        def act(x):
-            return torch.relu(x).mul(2 ** 0.5)
+        _act = torch.relu
     elif args.act == 'tanh':
-        def act(x):
-            return torch.tanh(x).mul(1.5927116424039378)
+        _act = torch.tanh
     elif args.act == 'softplus':
-        factor = torch.nn.functional.softplus(torch.randn(100000, dtype=torch.float64), args.act_beta).pow(2).mean().rsqrt().item()
-
-        def act(x):
-            return torch.nn.functional.softplus(x, beta=args.act_beta).mul(factor)
+        _act = torch.nn.functional.softplus
     elif args.act == 'swish':
-        act = swish
+        _act = swish
     else:
         raise ValueError('act not specified')
+
+    def __act(x):
+        b = args.act_beta
+        return _act(b * x) / b
+    factor = __act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item()
+
+    def act(x):
+        return __act(x) * factor
 
     _d = abs(act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item() - 1)
     assert _d < 1e-2, _d
@@ -199,7 +209,12 @@ def init(args):
         assert args.L is not None
         xtr = xtr.flatten(1)
         xte = xte.flatten(1)
-        f = FC(xtr.size(1), args.h, c, args.L, act, args.bias)
+        f = FC(xtr.size(1), args.h, c, args.L, act, args.bias, args.var_bias)
+
+    elif args.arch == 'mnas':
+        assert args.act == 'swish'
+        f = MnasNetLike(xtr.size(1), args.h, c, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2)
+
     else:
         raise ValueError('arch not specified')
 
@@ -242,13 +257,17 @@ def main():
 
     parser.add_argument("--arch", type=str, required=True)
     parser.add_argument("--act", type=str, required=True)
-    parser.add_argument("--act_beta", type=float, default=5.0)
+    parser.add_argument("--act_beta", type=float, default=1.0)
     parser.add_argument("--bias", type=float, default=0)
+    parser.add_argument("--var_bias", type=float, default=0)
     parser.add_argument("--L", type=int)
     parser.add_argument("--h", type=int, required=True)
+    parser.add_argument("--cv_L1", type=int, default=2)
+    parser.add_argument("--cv_L2", type=int, default=2)
 
     parser.add_argument("--regular", type=int, default=1)
     parser.add_argument("--save_outputs", type=int, default=0)
+    parser.add_argument("--save_state", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
@@ -257,6 +276,7 @@ def main():
     parser.add_argument("--tau_alpha_crit", type=float)
 
     parser.add_argument("--train_time", type=float, required=True)
+    parser.add_argument("--wall_max_early_stopping", type=float)
     parser.add_argument("--chunk", type=int)
     parser.add_argument("--max_dgrad", type=float, default=1e-4)
     parser.add_argument("--max_dout", type=float, default=1e-1)
