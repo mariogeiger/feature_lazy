@@ -173,6 +173,7 @@ def init(args):
         (args.pte, args.ptr),
         (args.seed_testset + args.pte, args.seed_trainset + args.ptr),
         args.d,
+        None,
         args.device,
         torch.get_default_dtype()
     )
