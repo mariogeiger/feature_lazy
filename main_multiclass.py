@@ -12,7 +12,7 @@ from arch import FC
 from arch.mnas import MnasNetLike
 from arch.swish import swish
 from dataset import get_dataset
-from dynamics import loglinspace, train_regular
+from dynamics import train_regular, loglinspace
 
 
 def loss_func(args, f, y):
@@ -46,7 +46,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     wall_best_test_error = perf_counter()
     tmp_outputs_index = -1
 
-    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
     wall = perf_counter()
@@ -285,6 +285,9 @@ def main():
     parser.add_argument("--loss", type=str, default="crossentropy")
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
+
+    parser.add_argument("--ckpt_step", type=int, default=100)
+    parser.add_argument("--ckpt_tau", type=float, default=1e4)
 
     parser.add_argument("--pickle", type=str, required=True)
     args = parser.parse_args()

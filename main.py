@@ -60,7 +60,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
 
     margin = 0
 
-    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
     wall = perf_counter()
@@ -168,7 +168,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     tmp_outputs_index = -1
     margin = 0
 
-    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
     wall = perf_counter()
@@ -518,6 +518,9 @@ def main():
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
+
+    parser.add_argument("--ckpt_step", type=int, default=100)
+    parser.add_argument("--ckpt_tau", type=float, default=1e4)
 
     parser.add_argument("--pickle", type=str, required=True)
     args = parser.parse_args()
