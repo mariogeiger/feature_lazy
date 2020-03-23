@@ -106,7 +106,7 @@ class Conv1d(nn.Module):
     def __init__(self, d, h, act, bias):
         super().__init__()
 
-        self.W = nn.Parameter(torch.randn(h,1,d))
+        self.W = nn.Parameter(torch.randn(h, 1, d))
         self.B = nn.Parameter(torch.randn(h))
         self.C = nn.Parameter(torch.randn(h))
 
@@ -118,7 +118,7 @@ class Conv1d(nn.Module):
         B = self.bias * self.B
         h = len(B)
         x = torch.cat((x, x[:, :-1]), dim=1)
-        x = x.reshape(x.size(0), 1, d + d-1)
+        x = x.reshape(x.size(0), 1, d + d - 1)
         return (self.act(F.conv1d(x, self.W / d**0.5, B)).sum(dim=2) / d) @ (self.C / h)
 
 

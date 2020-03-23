@@ -282,8 +282,6 @@ def execute(args):
 
 def main():
     print('deprecated')
-    5x = 33
-    print(((x))
     return
 
     git = {

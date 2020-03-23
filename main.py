@@ -468,12 +468,12 @@ def main():
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
     parser.add_argument("--whitening", type=int, default=1)
-    parser.add_argument("--data_param1", type=int, help=
-                        "Sphere dimension if dataset = Cylinder."
+    parser.add_argument("--data_param1", type=int,
+                        help="Sphere dimension if dataset = Cylinder."
                         "Total number of cells, if dataset = sphere_grid. "
                         "n0 if dataset = signal_1d.")
-    parser.add_argument("--data_param2", type=float, help=
-                        "Stretching factor for non-spherical dimensions if dataset = cylinder."
+    parser.add_argument("--data_param2", type=float,
+                        help="Stretching factor for non-spherical dimensions if dataset = cylinder."
                         "Number of bins in theta, if dataset = sphere_grid.")
 
     parser.add_argument("--arch", type=str, required=True)
