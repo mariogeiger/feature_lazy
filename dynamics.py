@@ -106,14 +106,17 @@ def output_gradient(f, loss, x, y, out0, chunk):
     out = []
     grad = 0
     for i in [slice(i, i + chunk) for i in range(0, len(x), chunk)]:
-        o = f(x[i])
-        l = loss(o - out0[i], y[i]).sum() / len(x)
+        o = f(x[i]) - out0[i]
+        l = loss(o, y[i]).sum() / len(x)
         grad += gradient(l, f.parameters())
         out.append(o)
     return torch.cat(out), grad
 
 
-def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, max_dout=math.inf):
+def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgrad=math.inf, max_dout=math.inf):
+    if batch is None:
+        batch = len(x)
+
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
@@ -129,7 +132,8 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
 
     t = 0
 
-    out, grad = output_gradient(f, loss, x, y, out0, chunk)
+    bi = torch.randperm(len(x))[:batch].sort().values
+    out, grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
     dgrad, dout = 0, 0
 
     for step in itertools.count():
@@ -142,7 +146,7 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
             'dout': dout,
         }
 
-        yield state, f, out, out0, grad
+        yield state, f, out, out0[bi], grad, bi
 
         if torch.isnan(out).any():
             break
@@ -157,7 +161,7 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
             current_dt = dt
 
             # 3 - Check if the step is small enough
-            new_out, new_grad = output_gradient(f, loss, x, y, out0, chunk)
+            new_out, new_grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
             dout = (out - new_out).mul(alpha).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:
@@ -180,8 +184,12 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
             t = state[2]
 
         # 5 - If yes, compute the new output and gradient
-        out = new_out
-        grad = new_grad
+        if batch == len(x):
+            out = new_out
+            grad = new_grad
+        else:
+            bi = torch.randperm(len(x))[:batch].sort().values
+            out, grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
 
 def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout=math.inf):

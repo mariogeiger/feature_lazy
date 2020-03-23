@@ -155,9 +155,11 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     with torch.no_grad():
         ote0 = f0(xte)
+        otr0 = f0(xtr)
 
     if args.f0 == 0:
         ote0 = torch.zeros_like(ote0)
+        otr0 = torch.zeros_like(otr0)
 
     tau = args.tau_over_h * args.h
     if args.tau_alpha_crit is not None:
@@ -173,9 +175,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, f, otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
-        otr = otr - otr0
-
+    for state, f, otr, _otr0, grad, _bi in train_regular(f0, xtr, ytr, tau, args.alpha,
+                                                         partial(loss_func, args), bool(args.f0),
+                                                         args.chunk, args.bs, args.max_dgrad, args.max_dout):
         save_outputs = args.save_outputs
         save = stop = False
 
@@ -188,15 +190,27 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             save = save_outputs = stop = True
         if args.wall_max_early_stopping is not None and wall_best_test_error + args.wall_max_early_stopping < perf_counter():
             save = save_outputs = stop = True
-        mind = (args.alpha * otr * ytr).min().item()
-        if mind > margin:
-            margin += 0.5
-            save = save_outputs = True
-        if mind > args.stop_margin:
-            save = save_outputs = stop = True
+        if len(otr) == len(xtr):
+            mind = (args.alpha * otr * ytr).min().item()
+            if mind > margin:
+                margin += 0.5
+                save = save_outputs = True
+            if mind > args.stop_margin:
+                save = save_outputs = stop = True
 
         if not save:
             continue
+
+        if len(otr) < len(xtr):
+            with torch.no_grad():
+                otr = f(xtr) - otr0
+
+            mind = (args.alpha * otr * ytr).min().item()
+            if mind > margin:
+                margin += 0.5
+                save = save_outputs = True
+            if mind > args.stop_margin:
+                save = save_outputs = stop = True
 
         with torch.no_grad():
             ote = f(xte) - ote0
@@ -518,6 +532,7 @@ def main():
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
+    parser.add_argument("--bs", type=int)
 
     parser.add_argument("--ckpt_step", type=int, default=100)
     parser.add_argument("--ckpt_tau", type=float, default=1e4)
