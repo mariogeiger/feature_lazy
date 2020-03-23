@@ -281,6 +281,9 @@ def execute(args):
 
 
 def main():
+    print('deprecated')
+    return
+
     git = {
         'log': subprocess.getoutput('git log --format="%H" -n 1 -z'),
         'status': subprocess.getoutput('git status -z'),
