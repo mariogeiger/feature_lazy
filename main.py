@@ -20,7 +20,6 @@ def loss_func(args, f, y):
     if args.loss == 'hinge':
         return (args.loss_margin - args.alpha * f * y).relu() / args.alpha
     if args.loss == 'softhinge':
-    if args.loss == 'softhinge':
         sp = partial(torch.nn.functional.softplus, beta=args.loss_beta)
         return sp(args.loss_margin - args.alpha * f * y) / args.alpha
     if args.loss == 'qhinge':
@@ -29,7 +28,7 @@ def loss_func(args, f, y):
 
 def loss_func_prime(args, f, y):
     if args.loss == 'hinge':
-        return -((args.loss_margin - args.alpha * f * y) > 0) * y
+        return -((args.loss_margin - args.alpha * f * y) > 0).float() * y
     if args.loss == 'softhinge':
         return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * f * y)) * y
     if args.loss == 'qhinge':
