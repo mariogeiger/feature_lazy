@@ -20,6 +20,7 @@ def loss_func(args, f, y):
     if args.loss == 'hinge':
         return (args.loss_margin - args.alpha * f * y).relu() / args.alpha
     if args.loss == 'softhinge':
+    if args.loss == 'softhinge':
         sp = partial(torch.nn.functional.softplus, beta=args.loss_beta)
         return sp(args.loss_margin - args.alpha * f * y) / args.alpha
     if args.loss == 'qhinge':
@@ -60,7 +61,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
 
     margin = 0
 
-    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
     wall = perf_counter()
@@ -155,9 +156,11 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     with torch.no_grad():
         ote0 = f0(xte)
+        otr0 = f0(xtr)
 
     if args.f0 == 0:
         ote0 = torch.zeros_like(ote0)
+        otr0 = torch.zeros_like(otr0)
 
     tau = args.tau_over_h * args.h
     if args.tau_alpha_crit is not None:
@@ -168,14 +171,14 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     tmp_outputs_index = -1
     margin = 0
 
-    checkpoint_generator = loglinspace(100, 100 * 100)
+    checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
     wall = perf_counter()
     dynamics = []
-    for state, f, otr, otr0, grad in train_regular(f0, xtr, ytr, tau, args.alpha, partial(loss_func, args), bool(args.f0), args.chunk, args.max_dgrad, args.max_dout):
-        otr = otr - otr0
-
+    for state, f, otr, _otr0, grad, _bi in train_regular(f0, xtr, ytr, tau, args.alpha,
+                                                         partial(loss_func, args), bool(args.f0),
+                                                         args.chunk, args.bs, args.max_dgrad, args.max_dout):
         save_outputs = args.save_outputs
         save = stop = False
 
@@ -188,15 +191,27 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             save = save_outputs = stop = True
         if args.wall_max_early_stopping is not None and wall_best_test_error + args.wall_max_early_stopping < perf_counter():
             save = save_outputs = stop = True
-        mind = (args.alpha * otr * ytr).min().item()
-        if mind > margin:
-            margin += 0.5
-            save = save_outputs = True
-        if mind > args.stop_margin:
-            save = save_outputs = stop = True
+        if len(otr) == len(xtr):
+            mind = (args.alpha * otr * ytr).min().item()
+            if mind > margin:
+                margin += 0.5
+                save = save_outputs = True
+            if mind > args.stop_margin:
+                save = save_outputs = stop = True
 
         if not save:
             continue
+
+        if len(otr) < len(xtr):
+            with torch.no_grad():
+                otr = f(xtr) - otr0
+
+            mind = (args.alpha * otr * ytr).min().item()
+            if mind > margin:
+                margin += 0.5
+                save = save_outputs = True
+            if mind > args.stop_margin:
+                save = save_outputs = stop = True
 
         with torch.no_grad():
             ote = f(xte) - ote0
@@ -468,12 +483,12 @@ def main():
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
     parser.add_argument("--whitening", type=int, default=1)
-    parser.add_argument("--data_param1", type=int, help=
-                        "Sphere dimension if dataset = Cylinder."
+    parser.add_argument("--data_param1", type=int,
+                        help="Sphere dimension if dataset = Cylinder."
                         "Total number of cells, if dataset = sphere_grid. "
                         "n0 if dataset = signal_1d.")
-    parser.add_argument("--data_param2", type=float, help=
-                        "Stretching factor for non-spherical dimensions if dataset = cylinder."
+    parser.add_argument("--data_param2", type=float,
+                        help="Stretching factor for non-spherical dimensions if dataset = cylinder."
                         "Number of bins in theta, if dataset = sphere_grid.")
 
     parser.add_argument("--arch", type=str, required=True)
@@ -518,6 +533,10 @@ def main():
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
+    parser.add_argument("--bs", type=int)
+
+    parser.add_argument("--ckpt_step", type=int, default=100)
+    parser.add_argument("--ckpt_tau", type=float, default=1e4)
 
     parser.add_argument("--pickle", type=str, required=True)
     args = parser.parse_args()

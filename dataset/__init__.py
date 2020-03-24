@@ -9,10 +9,10 @@ import functools
 import math
 from itertools import chain
 
-import math
 import scipy.special
 import torch
 import torch.nn.functional as F
+
 
 def inverf2(x):
     """ Inverse error function in 2d."""
@@ -203,7 +203,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             assert p % bins == 0, f"p needs to be multiple of {bins}, number of bins"
             assert p % theta_bins == 0, f"p needs to be multiple of {theta_bins}, number of angular bins"
             r_bins = bins // theta_bins
-            ppc = p // bins # points per cell
+            ppc = p // bins  # points per cell
 
             r_spacing = inverf2(torch.arange(r_bins).double().div_(r_bins))
             # cutting the last bin of the gaussian which would go to infinity

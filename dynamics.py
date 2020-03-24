@@ -106,14 +106,17 @@ def output_gradient(f, loss, x, y, out0, chunk):
     out = []
     grad = 0
     for i in [slice(i, i + chunk) for i in range(0, len(x), chunk)]:
-        o = f(x[i])
-        l = loss(o - out0[i], y[i]).sum() / len(x)
+        o = f(x[i]) - out0[i]
+        l = loss(o, y[i]).sum() / len(x)
         grad += gradient(l, f.parameters())
         out.append(o)
     return torch.cat(out), grad
 
 
-def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, max_dout=math.inf):
+def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgrad=math.inf, max_dout=math.inf):
+    if batch is None:
+        batch = len(x)
+
     f = copy.deepcopy(f0)
 
     with torch.no_grad():
@@ -129,7 +132,8 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
 
     t = 0
 
-    out, grad = output_gradient(f, loss, x, y, out0, chunk)
+    bi = torch.randperm(len(x))[:batch].sort().values
+    out, grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
     dgrad, dout = 0, 0
 
     for step in itertools.count():
@@ -142,21 +146,22 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
             'dout': dout,
         }
 
-        yield state, f, out, out0, grad
+        yield state, f, out, out0[bi], grad, bi
 
         if torch.isnan(out).any():
             break
 
-        # make 1 step:
-
+        # 1 - Save current state
         state = copy.deepcopy((f.state_dict(), optimizer.state_dict(), t))
 
         while True:
+            # 2 - Make a tentative step
             make_step(f, optimizer, dt, grad)
             t += dt
             current_dt = dt
 
-            new_out, new_grad = output_gradient(f, loss, x, y, out0, chunk)
+            # 3 - Check if the step is small enough
+            new_out, new_grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
             dout = (out - new_out).mul(alpha).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:
@@ -169,6 +174,7 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
                     dt *= 1.1
                 break
 
+            # 4 - If not, reset and retry
             dt /= 10
 
             print("[{} +{}] [dt={:.1e} dgrad={:.1e} dout={:.1e}]".format(step, step - step_change_dt, dt, dgrad, dout), flush=True)
@@ -177,8 +183,13 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, max_dgrad=math.inf, 
             optimizer.load_state_dict(state[1])
             t = state[2]
 
-        out = new_out
-        grad = new_grad
+        # 5 - If yes, compute the new output and gradient
+        if batch == len(x):
+            out = new_out
+            grad = new_grad
+        else:
+            bi = torch.randperm(len(x))[:batch].sort().values
+            out, grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
 
 def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout=math.inf):
@@ -210,12 +221,11 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
         if torch.isnan(otr).any():
             break
 
-        # make 1 step:
-
+        # 1 - Save current state
         state = copy.deepcopy((otr, velo, t))
 
         while True:
-
+            # 2 - Make a tentative step
             if tau > 0:
                 x = math.exp(-dt / tau)
                 velo.mul_(x).add_(-(1 - x), grad)
@@ -230,6 +240,7 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
             t += dt
             current_dt = dt
 
+            # 3 - Check if the step is small enough
             lprim = loss_prim(otr, ytr)
             new_grad = ktrtr @ lprim / len(ytr)
 
@@ -244,6 +255,7 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
                     dt *= 1.1
                 break
 
+            # 4 - If not, reset and retry
             dt /= 10
 
             print("[{} +{}] [dt={:.1e} dgrad={:.1e} dout={:.1e}]".format(step, step - step_change_dt, dt, dgrad, dout), flush=True)
@@ -252,4 +264,5 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
             velo.copy_(state[1])
             t = state[2]
 
+        # 5 - If yes, compute the new output and gradient
         grad = new_grad
