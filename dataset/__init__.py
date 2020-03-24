@@ -95,9 +95,9 @@ def get_binary_dataset(dataset, ps, seeds, d, params=None, device=None, dtype=No
 
 @functools.lru_cache(maxsize=2)
 def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
-    import torchvision
+    # import torchvision
 
-    transform = torchvision.transforms.ToTensor()
+    # transform = torchvision.transforms.ToTensor()
 
     torch.manual_seed(seeds[0])
 
@@ -223,14 +223,14 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             n0 = int(params[0])
             C0 = n0 * inverf2(1/2)
             r = torch.linspace(0, 2*math.pi, d).reshape(-1, 1).repeat(1, p)
-            x = torch.randn(p, d)
+            x = torch.zeros(p, d)
             a = torch.randn(p, n0)
             b = torch.randn(p, n0)
             # pattern psi: cos(r)
-            psi = r[:, 0].cos().reshape(1, 1, -1) / d
+            psi = r[:, 0].cos().reshape(1, 1, -1)
             for k in range(1, n0+1):
                 x += (a[:, k-1].mul((k * r).cos()) + b[:, k-1].mul((k * r).sin())).T
-            y = 2 * F.conv1d(torch.cat((x, x[:, :-1]), dim=1).reshape(p, 1, -1), psi).max(dim=2).values.reshape(-1) - C0 > 0
+            y = 2 / d * F.conv1d(torch.cat((x, x[:, :-1]), dim=1).reshape(p, 1, -1), psi).max(dim=2).values.reshape(-1) - C0 > 0
         y = y.to(dtype=torch.long)
         out += [(x, y, None)]
     return out
