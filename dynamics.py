@@ -113,7 +113,7 @@ def output_gradient(f, loss, x, y, out0, chunk):
     return torch.cat(out), grad
 
 
-def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgrad=math.inf, max_dout=math.inf):
+def train_regular(f0, x, y, tau, loss, subf0, chunk, batch=None, max_dgrad=math.inf, max_dout=math.inf):
     if batch is None:
         batch = len(x)
 
@@ -163,7 +163,7 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgra
             # 3 - Check if the step is small enough
             new_out, new_grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
-            dout = (out - new_out).mul(alpha).abs().max().item()
+            dout = (out - new_out).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:
                 dgrad = 0
             else:
@@ -192,7 +192,7 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgra
             out, grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
 
-def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout=math.inf):
+def train_kernel(ktrtr, ytr, tau, loss_prim, max_dgrad=math.inf, max_dout=math.inf):
     otr = ktrtr.new_zeros(len(ytr))
     velo = otr.clone()
 
@@ -244,7 +244,7 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
             lprim = loss_prim(otr, ytr)
             new_grad = ktrtr @ lprim / len(ytr)
 
-            dout = velo.mul(dt * alpha).abs().max().item()
+            dout = velo.mul(dt).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:
                 dgrad = 0
             else:
