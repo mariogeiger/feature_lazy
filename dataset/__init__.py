@@ -199,7 +199,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
         if dataset == 'boolmat': # Boolean Matrix. label of a point = sign of product of all its coordinates. Separates the d-dimensional space in 2^d quadrants.
             y = torch.sign(torch.prod(x,axis=1)) 
             y = 0.5*(y + 1) # to conform with the 1/0 output of this function (get_normalized_dataset)
-         if dataset == 'sphere_grid':
+        if dataset == 'sphere_grid':
             assert d == 2, "Spherical grid is only implemented in 2D"
             bins = int(params[0])
             theta_bins = int(params[1])
