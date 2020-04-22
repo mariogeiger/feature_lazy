@@ -122,8 +122,12 @@ def train_regular(f0, x, y, tau, loss, subf0, chunk, batch=None, max_dgrad=math.
     with torch.no_grad():
         with torch.no_grad():
             out0 = f0(x)
-        if not subf0:
-            out0 = torch.zeros_like(out0)
+        if isinstance(subf0, bool):
+            if not subf0:
+                out0 = torch.zeros_like(out0)
+        else:
+            assert out0.shape == subf0.shape
+            out0 = subf0
 
     dt = 1
     current_dt = 0
