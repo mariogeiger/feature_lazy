@@ -7,18 +7,19 @@ from .swish import Swish
 
 
 class NTKLinear(nn.Module):
-    def __init__(self, in_chs, out_chs, bias=True):
+    def __init__(self, in_chs, out_chs, bias=True, final=False):
         super().__init__()
 
         w = torch.randn(out_chs, in_chs)
         n = max(1, 256**2 // w[0].numel())
         self.w = nn.ParameterList([nn.Parameter(w[j: j + n]) for j in range(0, len(w), n)])
         self.b = nn.Parameter(torch.zeros(out_chs)) if bias else None
+        self.final = final
 
     def forward(self, x):
         w = torch.cat(list(self.w))
         h = w[0].numel()
-        return F.linear(x, w / h ** 0.5, self.b)
+        return F.linear(x, w / (h if self.final else h ** 0.5), self.b)
 
 
 class NTKConv(nn.Module):
@@ -134,7 +135,7 @@ class MnasNetLike(nn.Module):
         if dim == 2:
             self.global_pool = nn.AdaptiveAvgPool2d(1)
 
-        self.classifier = NTKLinear(c(), cl, bias=True)
+        self.classifier = NTKLinear(c(), cl, bias=True, final=True)
 
     def forward(self, x):
         x = self.conv_stem(x)
@@ -147,4 +148,27 @@ class MnasNetLike(nn.Module):
         x = self.classifier(x)
         if x.shape[1] == 1:
             return x.view(-1)
+        return x
+
+
+class MNISTNet(nn.Module):
+    def __init__(self, d, h, cl, act):
+        super().__init__()
+        c = Mem()
+        self.conv1 = NTKConv(c(d), c(round(h)), k=3, s=1)
+        self.conv2 = NTKConv(c(), c(round(2 * h)), k=3, s=1)
+        self.act = act
+        self.fc1 = NTKLinear(12**2 * c(), c(round(4 * h)))
+        self.fc2 = NTKLinear(c(), cl, final=True)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.act(x)
+        x = self.conv2(x)
+        x = self.act(x)
+        x = F.max_pool2d(x, 2)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.fc2(x)
         return x

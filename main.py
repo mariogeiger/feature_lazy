@@ -9,7 +9,7 @@ from time import perf_counter
 import torch
 
 from arch import CV, FC, FixedAngles, FixedWeights, Wide_ResNet, Conv1d
-from arch.mnas import MnasNetLike
+from arch.mnas import MnasNetLike, MNISTNet
 from arch.swish import swish
 from dataset import get_binary_dataset
 from dynamics import train_kernel, train_regular, loglinspace
@@ -433,6 +433,9 @@ def init(args):
     elif args.arch == 'mnas':
         assert args.act == 'swish'
         f = MnasNetLike(xtr.size(1), args.h, 1, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2)
+    elif args.arch == 'mnist':
+        assert args.dataset == 'mnist'
+        f = MNISTNet(xtr.size(1), args.h, 1, act)
     elif args.arch == 'fixed_weights':
         f = FixedWeights(args.d, args.h, act, args.bias)
     elif args.arch == 'fixed_angles':
