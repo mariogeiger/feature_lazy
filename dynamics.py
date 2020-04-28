@@ -167,6 +167,9 @@ def train_regular(f0, x, y, tau, loss, subf0, chunk, batch=None, max_dgrad=math.
             # 3 - Check if the step is small enough
             new_out, new_grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
+            if torch.isnan(new_out).any():
+                break
+
             dout = (out - new_out).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:
                 dgrad = 0
