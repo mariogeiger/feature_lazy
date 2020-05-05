@@ -180,7 +180,7 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
         if dataset == 'sphere':
             r = x.norm(dim=1)
-            y = (r**2 > d - 2 / 3)
+            y = r**2 > d * (1 - 2 / (9 * d))**3
         if dataset == 'cylinder':
             dsph = int(params[0])
             stretching = params[1]
