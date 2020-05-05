@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 
 class FC(nn.Module):
-    def __init__(self, d, h, c, L, act, bias=False, var_bias=0):
+    def __init__(self, d, h, c, L, act, bias=False, last_bias=False, var_bias=0):
         super().__init__()
 
         hh = d
@@ -31,12 +31,13 @@ class FC(nn.Module):
             hh = h
 
         self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(c, hh)))
-        if bias:
+        if last_bias:
             self.register_parameter("B{}".format(L), nn.Parameter(torch.randn(c).mul(var_bias**0.5)))
 
         self.L = L
         self.act = act
         self.bias = bias
+        self.last_bias = last_bias
 
     def forward(self, x):
         for i in range(self.L + 1):
@@ -45,8 +46,10 @@ class FC(nn.Module):
             if isinstance(W, nn.ParameterList):
                 W = torch.cat(list(W))
 
-            if self.bias:
+            if self.bias and i < self.L:
                 B = self.bias * getattr(self, "B{}".format(i))
+            elif self.last_bias and i == self.L:
+                B = self.last_bias * getattr(self, "B{}".format(i))
             else:
                 B = 0
 
