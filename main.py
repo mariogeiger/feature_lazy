@@ -239,6 +239,19 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 return torch.cat(list(getattr(f.f, "W{}".format(i))))
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
             state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
+            if args.save_weights:
+                assert args.L == 1
+                W = [getw(f, i) for i in range(2)]
+                W0 = [getw(f0, i) for i in range(2)]
+                state['w'] = [W[0][:, j].pow(2).mean().sqrt().item() for j in range(args.d)]
+                state['dw'] = [(W[0][:, j] - W0[0][:, j]).pow(2).mean().sqrt().item() for j in range(args.d)]
+                state['beta'] = W[1].pow(2).mean().sqrt().item()
+                state['dbeta'] = (W[1] - W0[1]).pow(2).mean().sqrt().item()
+                if args.bias:
+                    B = getattr(f.f, "B0")
+                    B0 = getattr(f0.f, "B0")
+                    state['b'] = B.pow(2).mean().sqrt().item()
+                    state['db'] = (B - B0).pow(2).mean().sqrt().item()
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
@@ -519,6 +532,7 @@ def main():
     parser.add_argument("--delta_kernel", type=int, default=0)
     parser.add_argument("--save_outputs", type=int, default=0)
     parser.add_argument("--save_state", type=int, default=0)
+    parser.add_argument("--save_weights", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
