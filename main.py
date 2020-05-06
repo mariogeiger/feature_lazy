@@ -583,6 +583,9 @@ def main():
     if args.chunk is None:
         args.chunk = max(args.ptr, args.pte, args.ptk)
 
+    if args.seed_init == -1:
+        args.seed_init = args.seed_trainset
+
     torch.save(args, args.pickle)
     saved = False
     try:
