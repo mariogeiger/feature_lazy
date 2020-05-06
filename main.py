@@ -382,6 +382,23 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 'test': (init_kernel[1] - final_kernel[1]).norm().item(),
             }
 
+        if args.stretch_kernel == 1:
+            assert args.save_weights
+            run["stretch_kernel"] = {
+                "lambda": {
+                    "NN": max([x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]),
+                    "ODE": (0.13514 * args.ptr)**0.5
+                    },
+            }
+            for key, lam in run["stretch_kernel"]["lambda"].items():
+                _xtr = xtr.clone()
+                _xte = xte.clone()
+                _xtr[:, 1:] = xtr[:, 1:] / lam
+                _xte[:, 1:] = xte[:, 1:] / lam
+                stretch_kernel = compute_kernels(f0, _xtr, _xte)
+                for out in run_kernel(args, *stretch_kernel, f0, _xtr, ytr, _xte, yte):
+                    run['stretch_kernel'][key] = out
+
     run['finished'] = True
     yield run
 
@@ -530,6 +547,8 @@ def main():
     parser.add_argument("--final_kernel_ptr", type=int, default=0)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
+    parser.add_argument("--stretch_kernel", type=int, default=0)
+
     parser.add_argument("--save_outputs", type=int, default=0)
     parser.add_argument("--save_state", type=int, default=0)
     parser.add_argument("--save_weights", type=int, default=0)
