@@ -28,7 +28,7 @@ def loss_func(args, f, y):
 
 def loss_func_prime(args, f, y):
     if args.loss == 'hinge':
-        return -((args.loss_margin - args.alpha * f * y) > 0) * y
+        return -((args.loss_margin - args.alpha * f * y) > 0).double() * y
     if args.loss == 'softhinge':
         return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * f * y)) * y
     if args.loss == 'qhinge':
@@ -239,6 +239,19 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 return torch.cat(list(getattr(f.f, "W{}".format(i))))
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
             state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
+            if args.save_weights:
+                assert args.L == 1
+                W = [getw(f, i) for i in range(2)]
+                W0 = [getw(f0, i) for i in range(2)]
+                state['w'] = [W[0][:, j].pow(2).mean().sqrt().item() for j in range(args.d)]
+                state['dw'] = [(W[0][:, j] - W0[0][:, j]).pow(2).mean().sqrt().item() for j in range(args.d)]
+                state['beta'] = W[1].pow(2).mean().sqrt().item()
+                state['dbeta'] = (W[1] - W0[1]).pow(2).mean().sqrt().item()
+                if args.bias:
+                    B = getattr(f.f, "B0")
+                    B0 = getattr(f0.f, "B0")
+                    state['b'] = B.pow(2).mean().sqrt().item()
+                    state['db'] = (B - B0).pow(2).mean().sqrt().item()
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
@@ -368,6 +381,23 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 'train': (init_kernel[0] - final_kernel[0]).norm().item(),
                 'test': (init_kernel[1] - final_kernel[1]).norm().item(),
             }
+
+        if args.stretch_kernel == 1:
+            assert args.save_weights
+            run["stretch_kernel"] = {
+                "lambda": {
+                    "NN": max([x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]),
+                    "ODE": (0.13514 * args.ptr)**0.5
+                    },
+            }
+            for key, lam in run["stretch_kernel"]["lambda"].items():
+                _xtr = xtr.clone()
+                _xte = xte.clone()
+                _xtr[:, 1:] = xtr[:, 1:] / lam
+                _xte[:, 1:] = xte[:, 1:] / lam
+                stretch_kernel = compute_kernels(f0, _xtr, _xte)
+                for out in run_kernel(args, *stretch_kernel, f0, _xtr, ytr, _xte, yte):
+                    run['stretch_kernel'][key] = out
 
     run['finished'] = True
     yield run
@@ -517,8 +547,11 @@ def main():
     parser.add_argument("--final_kernel_ptr", type=int, default=0)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
+    parser.add_argument("--stretch_kernel", type=int, default=0)
+
     parser.add_argument("--save_outputs", type=int, default=0)
     parser.add_argument("--save_state", type=int, default=0)
+    parser.add_argument("--save_weights", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
@@ -549,6 +582,9 @@ def main():
 
     if args.chunk is None:
         args.chunk = max(args.ptr, args.pte, args.ptk)
+
+    if args.seed_init == -1:
+        args.seed_init = args.seed_trainset
 
     torch.save(args, args.pickle)
     saved = False
