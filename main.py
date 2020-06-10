@@ -197,6 +197,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 save = save_outputs = True
             if mind > args.stop_margin:
                 save = save_outputs = stop = True
+        if (args.ptr - state["train"]["nd"]) / args.ptr > args.stop_frac:
+            save = save_outputs = stop = True
 
         if not save:
             continue
@@ -578,6 +580,7 @@ def main():
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
+    parser.add_argument("--stop_frac", type=float, default=1.0)
     parser.add_argument("--bs", type=int)
 
     parser.add_argument("--ckpt_step", type=int, default=100)
