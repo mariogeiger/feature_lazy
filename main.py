@@ -197,8 +197,6 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 save = save_outputs = True
             if mind > args.stop_margin:
                 save = save_outputs = stop = True
-        if (args.ptr - state["train"]["nd"]) / args.ptr > args.stop_frac:
-            save = save_outputs = stop = True
 
         if not save:
             continue
@@ -293,6 +291,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         out = {
             'dynamics': dynamics,
         }
+
+        if (args.ptr - state["train"]["nd"]) / args.ptr > args.stop_frac:
+            stop = True
 
         yield f, out
         if stop:
