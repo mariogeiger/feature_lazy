@@ -387,20 +387,19 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
         if args.stretch_kernel == 1:
             assert args.save_weights
-            run["stretch_kernel"] = {
-                "lambda": {
-                    "NN": max([x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]),
-                    "ODE": (0.13514 * args.ptr)**0.5
-                    },
-            }
-            for key, lam in run["stretch_kernel"]["lambda"].items():
-                _xtr = xtr.clone()
-                _xte = xte.clone()
-                _xtr[:, 1:] = xtr[:, 1:] / lam
-                _xte[:, 1:] = xte[:, 1:] / lam
-                stretch_kernel = compute_kernels(f0, _xtr, _xte)
-                for out in run_kernel(args, *stretch_kernel, f0, _xtr, ytr, _xte, yte):
-                    run['stretch_kernel'][key] = out
+            lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
+            frac = np.array([(args.ptr - x["train"]["nd"]) / args.ptr for x in run['regular']["dynamics"]])
+            for _lam, _frac in zip(lam, frac):
+                if _frac > 0.1:
+                    lam_star = _lam
+                    break
+            _xtr = xtr.clone()
+            _xte = xte.clone()
+            _xtr[:, 1:] = xtr[:, 1:] / lam_star
+            _xte[:, 1:] = xte[:, 1:] / lam_star
+            stretch_kernel = compute_kernels(f0, _xtr, _xte)
+            for out in run_kernel(args, *stretch_kernel, f0, _xtr, ytr, _xte, yte):
+                run['stretch_kernel'] = out
 
     run['finished'] = True
     yield run
