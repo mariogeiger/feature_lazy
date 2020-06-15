@@ -197,6 +197,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 save = save_outputs = True
             if mind > args.stop_margin:
                 save = save_outputs = stop = True
+        if (args.ptr - (args.alpha * otr * ytr < args.stop_margin).long().sum().item()) / args.ptr > args.stop_frac:
+            save = save_outputs = stop = True
 
         if not save:
             continue
