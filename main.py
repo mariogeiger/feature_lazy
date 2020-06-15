@@ -197,6 +197,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 save = save_outputs = True
             if mind > args.stop_margin:
                 save = save_outputs = stop = True
+        if (args.ptr - (args.alpha * otr * ytr < args.stop_margin).long().sum().item()) / args.ptr > args.stop_frac:
+            save = save_outputs = stop = True
 
         if not save:
             continue
@@ -291,6 +293,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         out = {
             'dynamics': dynamics,
         }
+
+        if (args.ptr - state["train"]["nd"]) / args.ptr > args.stop_frac:
+            stop = True
 
         yield f, out
         if stop:
@@ -392,20 +397,19 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
         if args.stretch_kernel == 1:
             assert args.save_weights
-            run["stretch_kernel"] = {
-                "lambda": {
-                    "NN": max([x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]),
-                    "ODE": (0.13514 * args.ptr)**0.5
-                    },
-            }
-            for key, lam in run["stretch_kernel"]["lambda"].items():
-                _xtr = xtr.clone()
-                _xte = xte.clone()
-                _xtr[:, 1:] = xtr[:, 1:] / lam
-                _xte[:, 1:] = xte[:, 1:] / lam
-                stretch_kernel = compute_kernels(f0, _xtr, _xte)
-                for out in run_kernel(args, *stretch_kernel, f0, _xtr, ytr, _xte, yte):
-                    run['stretch_kernel'][key] = out
+            lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
+            frac = [(args.ptr - x["train"]["nd"]) / args.ptr for x in run['regular']["dynamics"]]
+            for _lam, _frac in zip(lam, frac):
+                if _frac > 0.1:
+                    lam_star = _lam
+                    break
+            _xtr = xtr.clone()
+            _xte = xte.clone()
+            _xtr[:, 1:] = xtr[:, 1:] / lam_star
+            _xte[:, 1:] = xte[:, 1:] / lam_star
+            stretch_kernel = compute_kernels(f0, _xtr, _xte)
+            for out in run_kernel(args, *stretch_kernel, f0, _xtr, ytr, _xte, yte):
+                run['stretch_kernel'] = out
 
     run['finished'] = True
     yield run
@@ -578,6 +582,7 @@ def main():
     parser.add_argument("--loss_beta", type=float, default=20.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
+    parser.add_argument("--stop_frac", type=float, default=1.0)
     parser.add_argument("--bs", type=int)
 
     parser.add_argument("--ckpt_step", type=int, default=100)
