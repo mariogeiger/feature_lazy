@@ -4,8 +4,11 @@ Computes the Gram matrix of a given model
 """
 
 
-def compute_kernels(f, xtr, xte):
+def compute_kernels(f, xtr, xte, parameters=None):
     from hessian import gradient
+
+    if parameters is None:
+        parameters = list(f.parameters())
 
     ktrtr = xtr.new_zeros(len(xtr), len(xtr))
     ktetr = xtr.new_zeros(len(xte), len(xtr))
@@ -13,7 +16,7 @@ def compute_kernels(f, xtr, xte):
 
     params = []
     current = []
-    for p in sorted(f.parameters(), key=lambda p: p.numel(), reverse=True):
+    for p in sorted(parameters, key=lambda p: p.numel(), reverse=True):
         current.append(p)
         if sum(p.numel() for p in current) > 2e9 // (8 * (len(xtr) + len(xte))):
             if len(current) > 1:

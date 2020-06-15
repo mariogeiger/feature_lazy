@@ -350,6 +350,14 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     out['dynamics'][-1]['kernel_ptr'] = out['dynamics'][-1]['kernel']
                 out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
 
+                if args.kernel_headless == 1:
+                    ktrtr, ktetr, ktete = compute_kernels(f, xtk, xte[:len(xtk)], [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n])
+                    out['dynamics'][-1]['kernel_headless'] = {
+                        'ktrtr': ktrtr.cpu(),
+                        'ktetr': ktetr.cpu(),
+                        'ktete': ktete.cpu(),
+                    }
+
             if perf_counter() - wall > 120:
                 wall = perf_counter()
                 yield run
@@ -543,6 +551,7 @@ def main():
     parser.add_argument("--init_kernel_ptr", type=int, default=0)
     parser.add_argument("--regular", type=int, default=1)
     parser.add_argument('--running_kernel', nargs='+', type=float)
+    parser.add_argument('--kernel_headless', type=int, default=0)
     parser.add_argument("--final_kernel", type=int, default=0)
     parser.add_argument("--final_kernel_ptr", type=int, default=0)
     parser.add_argument("--store_kernel", type=int, default=0)
