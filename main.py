@@ -1,4 +1,4 @@
-# pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable
+# pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable, not-callable
 import argparse
 import copy
 import os
@@ -122,8 +122,8 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                 'labels': yte,
             }
 
-        print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}]"
-              + " [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr}]").format(d=state, ptr=len(xtr)), flush=True)
+        print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}]" + \
+               " [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr}]").format(d=state, ptr=len(xtr)), flush=True)
         dynamics.append(state)
 
         out = {
@@ -278,11 +278,11 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         }
         print(
             (
-                "[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] "
-                + "[dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] "
-                + "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} "
-                + "nd={d[train][nd]}/{p} mind={d[train][mind]:.3f}] "
-                + "[test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]"
+                "[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] " + \
+                "[dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] " + \
+                "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} " + \
+                "nd={d[train][nd]}/{p} mind={d[train][mind]:.3f}] " + \
+                "[test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]"
             ).format(d=state, p=len(ytr)),
             flush=True
         )

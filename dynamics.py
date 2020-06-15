@@ -280,7 +280,6 @@ def ode_evolve(var0, grad_fn, max_dgrad):
 
     dt = 1
     current_dt = 0
-    step_change_dt = 0
 
     t = 0
 
@@ -329,8 +328,6 @@ def ode_evolve(var0, grad_fn, max_dgrad):
             # 4 - If not, reset and retry
             dt /= 10
 
-            print("[{} +{}] [dt={:.1e} dgrad={:.1e}]".format(step, step - step_change_dt, dt, dgrad), flush=True)
-            step_change_dt = step
             var, t = copy.deepcopy(state)
 
         # 5 - If yes, compute the new output and gradient
