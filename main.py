@@ -396,7 +396,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         if args.stretch_kernel == 1:
             assert args.save_weights
             lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
-            frac = np.array([(args.ptr - x["train"]["nd"]) / args.ptr for x in run['regular']["dynamics"]])
+            frac = [(args.ptr - x["train"]["nd"]) / args.ptr for x in run['regular']["dynamics"]]
             for _lam, _frac in zip(lam, frac):
                 if _frac > 0.1:
                     lam_star = _lam
