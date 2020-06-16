@@ -72,15 +72,15 @@ class ContinuousMomentum(torch.optim.Optimizer):
 
                 if tau > 0:
                     x = math.exp(-dt / tau)
-                    v.mul_(x).add_(-(1 - x), p.grad.data)
+                    v.mul_(x).add_(-(1 - x) * p.grad.data)
                 elif tau < 0:
                     mu = -tau
                     x = (t / (t + dt)) ** mu
-                    v.mul_(x).add_(-(1 - x), p.grad.data)
+                    v.mul_(x).add_(-(1 - x) * p.grad.data)
                 else:
                     v = -p.grad.data
 
-                p.data.add_(dt, v)
+                p.data.add_(dt * v)
                 param_state['t'] += dt
 
         return loss
@@ -235,14 +235,14 @@ def train_kernel(ktrtr, ytr, tau, loss_prim, max_dgrad=math.inf, max_dout=math.i
             # 2 - Make a tentative step
             if tau > 0:
                 x = math.exp(-dt / tau)
-                velo.mul_(x).add_(-(1 - x), grad)
+                velo.mul_(x).add_(-(1 - x) * grad)
             elif tau < 0:
                 mu = -tau
                 x = (t / (t + dt)) ** mu
-                velo.mul_(x).add_(-(1 - x), grad)
+                velo.mul_(x).add_(-(1 - x) * grad)
             else:
                 velo.copy_(-grad)
-            otr.add_(dt, velo)
+            otr.add_(dt * velo)
 
             t += dt
             current_dt = dt
