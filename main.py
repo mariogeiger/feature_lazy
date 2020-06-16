@@ -356,10 +356,10 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
 
                 if args.kernel_headless == 1:
-                    ktrtr, ktetr, ktete = compute_kernels(f, xtk, xte[:len(xtk)], [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n])
+                    ktrtr, _ktetr, ktete = compute_kernels(f, xtk, xte[:len(xtk)], [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n])
                     out['dynamics'][-1]['kernel_headless'] = {
                         'ktrtr': ktrtr.cpu(),
-                        'ktetr': ktetr.cpu(),
+                        # 'ktetr': ktetr.cpu(),
                         'ktete': ktete.cpu(),
                     }
 
