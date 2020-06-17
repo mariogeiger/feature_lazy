@@ -289,6 +289,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
         if args.save_f_along_x1:
             if state['train']['aloss'] < al_save_f_along_x1:
+                print(al_save_f_along_x1)
                 try:
                     al_save_f_along_x1 = next(it_save_f_along_x1)
                 except StopIteration:
