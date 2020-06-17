@@ -589,7 +589,7 @@ def main():
     parser.add_argument("--save_state", type=int, default=0)
     parser.add_argument("--save_weights", type=int, default=0)
     parser.add_argument("--save_z", type=int, default=0)
-    parser.add_argument("--save_f_along_x1", type=int, default=0)
+    parser.add_argument("--save_f_along_x1", nargs='+', type=float)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
