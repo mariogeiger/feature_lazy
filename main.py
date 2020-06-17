@@ -259,11 +259,11 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     selection = torch.randint(args.h, (args.save_z, ))
                     state["z"] = [-args.d**0.5 * B[s] * W[0][s, :] / (W[0][s, :]**2).sum() for s in selection]
         if args.save_f_along_x1:
-            x = torch.zeros(1000, args.d, dtype=torch.float64)
-            x[:, 0] = torch.linspace(-5, 5, 1000)
+            x = torch.zeros(100, args.d, dtype=torch.float64)
+            x[:, 0] = torch.linspace(-5, 5, 100)
             x = x.to(device=args.device, dtype=torch.get_default_dtype())
             y = args.alpha * (f(x) - f0(x))
-            state["f_along_x1"] = (x, y)
+            state["f_along_x1"] = (x[:, 0], y)
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
