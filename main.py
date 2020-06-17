@@ -258,7 +258,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     torch.manual_seed(2**8 + args.save_z)
                     selection = torch.randint(args.h, (args.save_z, ))
                     state["z"] = [-args.d**0.5 * B[s] * W[0][s, :] / (W[0][s, :]**2).sum() for s in selection]
-        if args.f_along_x1:
+        if args.save_f_along_x1:
             x = torch.zeros(1000, args.d, dtype=torch.float64)
             x[:, 0] = torch.linspace(-5, 5, 1000)
             y = args.alpha * (f(x) - f0(x))
@@ -577,6 +577,7 @@ def main():
     parser.add_argument("--save_state", type=int, default=0)
     parser.add_argument("--save_weights", type=int, default=0)
     parser.add_argument("--save_z", type=int, default=0)
+    parser.add_argument("--save_f_along_x1", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
