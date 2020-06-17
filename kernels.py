@@ -46,3 +46,38 @@ def compute_kernels(f, xtr, xte, parameters=None):
         del jtr, jte
 
     return ktrtr, ktetr, ktete
+
+
+def twonn_ratio(dist):
+    """
+    dist: (N, N)-array of the euclidean distances between each pair of the
+    population of N points.
+    """
+    dist = dist.sort(1).values
+    assert dist[:, 0].norm() == 0, dist[:, 0]
+    return dist[:, 2] / dist[:, 1]
+
+
+def intrinsic_dimension(mu):
+    """
+    mu: array of the ratios between second and first neighbours.
+    """
+
+    n = len(mu)
+    v = mu.log().sum()
+
+    # intrinsic dimension
+    d = (n + 1) / v
+    # std deviation around id
+    sigma = (n - 1)**0.5 / v
+
+    return d, sigma
+
+
+def kernel_intdim(k):
+    dist = (k.diag().reshape(-1, 1) + k.diag().reshape(1, -1) - 2 * k).sqrt()
+
+    mu = twonn_ratio(dist)
+    d, sigma = intrinsic_dimension(mu)
+
+    return d, sigma

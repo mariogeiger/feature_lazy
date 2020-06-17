@@ -13,7 +13,7 @@ from arch.mnas import MnasNetLike, MNISTNet
 from arch.swish import swish
 from dataset import get_binary_dataset
 from dynamics import train_kernel, train_regular, loglinspace
-from kernels import compute_kernels
+from kernels import compute_kernels, kernel_intdim
 
 
 def loss_func(args, f, y):
@@ -82,6 +82,8 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             save = save_outputs = True
         if mind > args.stop_margin:
             save = save_outputs = stop = True
+        if args.train_kernel == 0:
+            save = save_outputs = stop = True
 
         if not save:
             continue
@@ -135,6 +137,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                     'mean': ktrtr.mean(),
                     'std': ktrtr.std(),
                     'norm': ktrtr.norm(),
+                    'intdim': kernel_intdim(ktrtr),
                 },
                 'test': {
                     'value': ktete.cpu() if args.store_kernel == 1 else None,
@@ -142,6 +145,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                     'mean': ktete.mean(),
                     'std': ktete.std(),
                     'norm': ktete.norm(),
+                    'intdim': kernel_intdim(ktete),
                 },
             },
         }
@@ -582,6 +586,7 @@ def main():
     parser.add_argument("--final_kernel", type=int, default=0)
     parser.add_argument("--final_features", type=int, default=0)
     parser.add_argument("--final_kernel_ptr", type=int, default=0)
+    parser.add_argument("--train_kernel", type=int, default=1)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
     parser.add_argument("--stretch_kernel", type=int, default=0)
