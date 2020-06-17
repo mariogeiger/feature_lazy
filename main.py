@@ -257,7 +257,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 if args.save_z > 0:
                     torch.manual_seed(2**8 + args.save_z)
                     selection = torch.randint(args.h, (args.save_z, ))
-                    state["z"] = -args.d**0.5 * B[selection] * W[0][selection, :] / (W[0][selection, :]**2).sum(axis=1)
+                    state["z"] = [-args.d**0.5 * B[s] * W[0][s, :] / (W[0][s, :]**2).sum(axis=1) for s in selection]
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
