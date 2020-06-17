@@ -254,6 +254,10 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     B0 = getattr(f0.f, "B0")
                     state['b'] = B.pow(2).mean().sqrt().item()
                     state['db'] = (B - B0).pow(2).mean().sqrt().item()
+                if args.save_z > 0:
+                    torch.manual_seed(2**8 + args.save_z)
+                    selection = torch.randint(args.h, (args.save_z, ))
+                    state["z"] = -args.d**0.5 * B[selection] * W[0][selection, :] / (W[0][selection, :]**2).sum(axis=1)
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
@@ -565,6 +569,7 @@ def main():
     parser.add_argument("--save_outputs", type=int, default=0)
     parser.add_argument("--save_state", type=int, default=0)
     parser.add_argument("--save_weights", type=int, default=0)
+    parser.add_argument("--save_z", type=int, default=0)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
