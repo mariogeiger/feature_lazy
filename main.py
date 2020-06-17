@@ -173,6 +173,10 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
+    if args.save_f_along_x1:
+        it_save_f_along_x1 = iter(args.save_f_along_x1)
+        al_save_f_along_x1 = next(it_save_f_along_x1)
+
     wall = perf_counter()
     dynamics = []
     for state, f, otr, _otr0, grad, _bi in train_regular(f0, xtr, ytr, tau,
@@ -258,12 +262,6 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     torch.manual_seed(2**8 + args.save_z)
                     selection = torch.randint(args.h, (args.save_z, ))
                     state["z"] = [-args.d**0.5 * B[s] * W[0][s, :] / (W[0][s, :]**2).sum() for s in selection]
-        if args.save_f_along_x1:
-            x = torch.zeros(100, args.d, dtype=torch.float64)
-            x[:, 0] = torch.linspace(-5, 5, 100)
-            x = x.to(device=args.device, dtype=torch.get_default_dtype())
-            y = args.alpha * (f(x) - f0(x))
-            state["f_along_x1"] = (x[:, 0], y)
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
@@ -288,6 +286,19 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'outputs': ote if save_outputs else None,
             'labels': yte if save_outputs else None,
         }
+
+        if args.save_f_along_x1:
+            if state['train']['aloss'] < al_save_f_along_x1:
+                try:
+                    al_save_f_along_x1 = next(it_save_f_along_x1)
+                except StopIteration:
+                    al_save_f_along_x1 = 0
+                x = torch.zeros(100, args.d, dtype=torch.float64)
+                x[:, 0] = torch.linspace(-5, 5, 100)
+                x = x.to(device=args.device, dtype=torch.get_default_dtype())
+                y = args.alpha * (f(x) - f0(x))
+                state["f_along_x1"] = (x[:, 0], y)
+
         print(
             (
                 "[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] " + \
