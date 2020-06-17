@@ -261,6 +261,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         if args.save_f_along_x1:
             x = torch.zeros(1000, args.d, dtype=torch.float64)
             x[:, 0] = torch.linspace(-5, 5, 1000)
+            x = x.to(device=args.device, dtype=torch.get_default_dtype())
             y = args.alpha * (f(x) - f0(x))
             state["f_along_x1"] = (x, y)
 
