@@ -327,13 +327,13 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
     elif args.init_kernel == 1:
         del init_kernel
 
+    wall = perf_counter()
     if args.regular == 1:
         if args.running_kernel:
             it = iter(args.running_kernel)
             al = next(it)
         else:
             al = -1
-        wall = perf_counter()
         for f, out in run_regular(args, f0, xtr, ytr, xte, yte):
             run['regular'] = out
             if out['dynamics'][-1]['train']['aloss'] < al * out['dynamics'][0]['train']['aloss']:
@@ -383,10 +383,18 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             for out in run_kernel(args, *final_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_kernel'] = out
 
+                if perf_counter() - wall > 120:
+                    wall = perf_counter()
+                    yield run
+
         if args.final_kernel_ptr == 1:
             assert len(xtk) >= len(xtr)
             for out in run_kernel(args, *final_kernel_ptr, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_kernel_ptr'] = out
+
+                if perf_counter() - wall > 120:
+                    wall = perf_counter()
+                    yield run
 
         if args.delta_kernel == 1:
             final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
@@ -411,12 +419,20 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             for out in run_kernel(args, *stretch_kernel, f0, _xtr, ytr, _xte, yte):
                 run['stretch_kernel'] = out
 
+                if perf_counter() - wall > 120:
+                    wall = perf_counter()
+                    yield run
+
         if args.final_features == 1:
             if args.arch == 'fc':
                 parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n]
             final_features = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
             for out in run_kernel(args, *final_features, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_features'] = out
+
+                if perf_counter() - wall > 120:
+                    wall = perf_counter()
+                    yield run
 
     run['finished'] = True
     yield run
