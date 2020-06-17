@@ -258,6 +258,11 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     torch.manual_seed(2**8 + args.save_z)
                     selection = torch.randint(args.h, (args.save_z, ))
                     state["z"] = [-args.d**0.5 * B[s] * W[0][s, :] / (W[0][s, :]**2).sum() for s in selection]
+        if args.f_along_x1:
+            x = torch.zeros(1000, args.d, dtype=torch.float64)
+            x[:, 0] = torch.linspace(-5, 5, 1000)
+            y = args.alpha * (f(x) - f0(x))
+            state["f_along_x1"] = (x, y)
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
@@ -401,7 +406,9 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
         if args.stretch_kernel == 1:
             assert args.save_weights
-            lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
+            #lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
+            lam = [x["w"][0] / torch.tensor(x["w"][1:]).pow(2).mean().sqrt().item() for x in run['regular']["dynamics"]]
+
             frac = [(args.ptr - x["train"]["nd"]) / args.ptr for x in run['regular']["dynamics"]]
             for _lam, _frac in zip(lam, frac):
                 if _frac > 0.1:
