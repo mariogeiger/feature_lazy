@@ -35,7 +35,7 @@ drives the network dynamics from the feature regime (small
 
 In the following animation we show the evolution of the vectors 
 <img src="https://render.githubusercontent.com/render/math?math=\beta_n \vec \omega_n">
-during training
+during training in the *feature regime*
 
 
 ![6pt2_gif](https://github.com/leonardopetrini/feature_lazy/blob/experimental/stripe_wbeta_wlegend.gif)
@@ -43,6 +43,16 @@ during training
 *Note*: considering weights magnitude exploses during learning, vectors length is divided by 
 <img src="https://render.githubusercontent.com/render/math?math=\max(|\beta|\: ||\vec \omega||)">
 in order to make them fit in the frame. Relative norms and orientations are the quantities of interest.
+
+*Parameters*: 
+* Training set size: <img src="https://render.githubusercontent.com/render/math?math=p = 1000">
+* <img src="https://render.githubusercontent.com/render/math?math=\alpha = 10^{-6}">
+* Number of neurons: <img src="https://render.githubusercontent.com/render/math?math=h = 10000">
+* Activation function: <img src="https://render.githubusercontent.com/render/math?math=\sigma(\cdot) = ReLU(\cdot)">
+* Hinge loss: <img src="https://render.githubusercontent.com/render/math?math=l(\hat y) = \max(0, 1 - y \cdot \hat y)">
+
+
+
 
 
 [1]:https://
