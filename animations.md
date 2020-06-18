@@ -42,6 +42,10 @@ during training in the *feature regime*
   <img width="350" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/experimental/stripe_wbeta_losserrstep.gif">
 </p>
 
+The animation is consistent with the fact that the amplification factor
+<img src="https://render.githubusercontent.com/render/math?math=\lambda = \sqrt{\frac{\langle \omega_\parallel^2\rangle_h}{\langle\bar\omega_\bot^2\rangle_h}}">
+diverges. 
+
 *Note*: considering weights magnitude exploses during learning, vectors length is divided by 
 <img src="https://render.githubusercontent.com/render/math?math=\max(|\beta|\: ||\vec \omega||)">
 in order to make them fit in the frame. Relative norms and orientations are the quantities of interest.
