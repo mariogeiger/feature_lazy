@@ -253,6 +253,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 state['dw'] = [(W[0][:, j] - W0[0][:, j]).pow(2).mean().sqrt().item() for j in range(args.d)]
                 state['beta'] = W[1].pow(2).mean().sqrt().item()
                 state['dbeta'] = (W[1] - W0[1]).pow(2).mean().sqrt().item()
+                state["lambda"] = state['w'][0] / W[0][:, 1:].pow(2).sum(axis=1).mean().sqrt().item()
                 if args.bias:
                     B = getattr(f.f, "B0")
                     B0 = getattr(f0.f, "B0")
@@ -431,8 +432,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         if args.stretch_kernel == 1:
             assert args.save_weights
             #lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
-            lam = [x["w"][0] / torch.tensor(x["w"][1:]).pow(2).mean().sqrt().item() for x in run['regular']["dynamics"]]
-
+            #lam = [x["w"][0] / torch.tensor(x["w"][1:]).pow(2).mean().sqrt().item() for x in run['regular']["dynamics"]]
+            lam = [x["lambda"] for x in run['regular']["dynamics"]]
             frac = [(args.ptr - x["train"]["nd"]) / args.ptr for x in run['regular']["dynamics"]]
             for _lam, _frac in zip(lam, frac):
                 if _frac > 0.1:
