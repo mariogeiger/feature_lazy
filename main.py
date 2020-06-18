@@ -264,7 +264,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     selection = [0, 1]
                     print(B[0], B[1])
                     state["neurons"] = {
-                        "w": [W[0][s, :].detach() for s in selection],
+                        "w": [[W[0][s, i].item() for i in range(args.d)] for s in selection],
                         "b": [B[s].item() for s in selection],
                     }
 
