@@ -74,7 +74,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             save = True
         if torch.isnan(otr).any():
             save = stop = True
-        if wall + args.train_time < perf_counter():
+        if wall + args.max_wall_kernel < perf_counter():
             save = save_outputs = stop = True
         mind = (args.alpha * otr * ytr).min().item()
         if mind > margin:
@@ -192,7 +192,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             save = True
         if torch.isnan(otr).any():
             save = stop = True
-        if wall + args.train_time < perf_counter():
+        if wall + args.max_wall < perf_counter():
             save = save_outputs = stop = True
         if args.wall_max_early_stopping is not None and wall_best_test_error + args.wall_max_early_stopping < perf_counter():
             save = save_outputs = stop = True
@@ -616,7 +616,8 @@ def main():
     parser.add_argument("--tau_over_h", type=float, default=0.0)
     parser.add_argument("--tau_alpha_crit", type=float)
 
-    parser.add_argument("--train_time", type=float, required=True)
+    parser.add_argument("--max_wall", type=float, required=True)
+    parser.add_argument("--max_wall_kernel", type=float)
     parser.add_argument("--wall_max_early_stopping", type=float)
     parser.add_argument("--chunk", type=int)
     parser.add_argument("--max_dgrad", type=float, default=1e-4)
@@ -640,6 +641,9 @@ def main():
 
     if args.chunk is None:
         args.chunk = max(args.ptr, args.pte, args.ptk)
+
+    if args.max_wall_kernel is None:
+        args.max_wall_kernel = args.max_wall
 
     if args.seed_init == -1:
         args.seed_init = args.seed_trainset
