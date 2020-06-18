@@ -173,9 +173,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
-    if args.save_f_along_x1:
-        it_save_f_along_x1 = iter(args.save_f_along_x1)
-        al_save_f_along_x1 = next(it_save_f_along_x1)
+    if args.save_function:
+        it_function = iter(args.save_function)
+        al_function = next(it_function)
 
     wall = perf_counter()
     dynamics = []
@@ -258,10 +258,13 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     B0 = getattr(f0.f, "B0")
                     state['b'] = B.pow(2).mean().sqrt().item()
                     state['db'] = (B - B0).pow(2).mean().sqrt().item()
-                if args.save_z > 0:
-                    torch.manual_seed(2**8 + args.save_z)
-                    selection = torch.randint(args.h, (args.save_z, ))
-                    state["z"] = [-args.d**0.5 * B[s] * W[0][s, :] / (W[0][s, :]**2).sum() for s in selection]
+                if args.save_neurons > 0:
+                    torch.manual_seed(2**8 + args.save_neurons)
+                    selection = torch.randint(args.h, (args.save_neurons, ))
+                    state["neurons"] = {
+                        "w": [W[0][s, :] for s in selection],
+                        "b": [B[s] for s in selection],
+                        }
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
@@ -287,18 +290,20 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'labels': yte if save_outputs else None,
         }
 
-        if args.save_f_along_x1:
-            if state['train']['aloss'] < al_save_f_along_x1:
-                print(al_save_f_along_x1)
+        if args.save_function:
+            if state['train']['aloss'] < al_function:
                 try:
-                    al_save_f_along_x1 = next(it_save_f_along_x1)
+                    al_function = next(it_function)
                 except StopIteration:
-                    al_save_f_along_x1 = 0
-                x = torch.zeros(100, args.d, dtype=torch.float64)
-                x[:, 0] = torch.linspace(-5, 5, 100)
-                x = x.to(device=args.device, dtype=torch.get_default_dtype())
-                y = args.alpha * (f(x) - f0(x))
-                state["f_along_x1"] = (x[:, 0], y)
+                    al_function = 0
+                x1 = torch.zeros(100, args.d, dtype=torch.float64)
+                x1[:, 0] = torch.linspace(-3, 3, 100)
+                x1 = x.to(device=args.device, dtype=torch.get_default_dtype())
+                y1 = args.alpha * (f(x1) - f0(x1))
+                state["function"] = {
+                    "x1": y1,
+                    "xtr": otr,
+                }
 
         print(
             (
@@ -348,6 +353,12 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         init_kernel = (init_kernel[0].cpu(), init_kernel[2].cpu())
     elif args.init_kernel == 1:
         del init_kernel
+
+    if args.save_function:
+        run["dataset"] = {
+            "xtr": xtr,
+            "x1": torch.linspace(-3, 3, 100),
+        }
 
     if args.regular == 1:
         if args.running_kernel:
@@ -589,8 +600,8 @@ def main():
     parser.add_argument("--save_outputs", type=int, default=0)
     parser.add_argument("--save_state", type=int, default=0)
     parser.add_argument("--save_weights", type=int, default=0)
-    parser.add_argument("--save_z", type=int, default=0)
-    parser.add_argument("--save_f_along_x1", nargs='+', type=float)
+    parser.add_argument("--save_neurons", type=int, default=0)
+    parser.add_argument("--save_function", nargs='+', type=float)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
