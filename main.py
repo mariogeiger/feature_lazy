@@ -298,7 +298,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     al_function = 0
                 x1 = torch.zeros(100, args.d, dtype=torch.float64)
                 x1[:, 0] = torch.linspace(-3, 3, 100)
-                x1 = x.to(device=args.device, dtype=torch.get_default_dtype())
+                x1 = x1.to(device=args.device, dtype=torch.get_default_dtype())
                 y1 = args.alpha * (f(x1) - f0(x1))
                 state["function"] = {
                     "x1": y1,
