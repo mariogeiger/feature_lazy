@@ -34,7 +34,7 @@ drives the network dynamics from the feature regime (small
 <img src="https://render.githubusercontent.com/render/math?math=\alpha">
 ).
 
-In the following animation we show the evolution of the vectors 
+In the following animation we show the amplification effect taking place during the evolution of the vectors 
 <img src="https://render.githubusercontent.com/render/math?math=\beta_n \vec \omega_n">
 during training in the *feature regime*
 
