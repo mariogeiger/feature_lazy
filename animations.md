@@ -51,7 +51,8 @@ in order to make them fit in the frame. Relative norms and orientations are the 
 * <img src="https://render.githubusercontent.com/render/math?math=\alpha = 10^{-6}">
 * Number of neurons: <img src="https://render.githubusercontent.com/render/math?math=h = 10000">
 * Activation function: <img src="https://render.githubusercontent.com/render/math?math=\sigma(\cdot) = ReLU(\cdot)">
-* Hinge loss: <img src="https://render.githubusercontent.com/render/math?math=l(\hat y) = \max(0, 1 - y \cdot \hat y)">
-
+* Hinge loss: <img src="https://render.githubusercontent.com/render/math?math=l(z) = \max(0, 1 - z)">
+* All weights are initalized <img src="https://render.githubusercontent.com/render/math?math=\vec \omega_n, \b_n, \beta_n \sim \mathcal{N}(0,\mathbf{1})">
+* <img src="https://render.githubusercontent.com/render/math?math=f_0"> is the network function at initialization.
 
 [1]:https://
