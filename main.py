@@ -13,7 +13,7 @@ from arch.mnas import MnasNetLike, MNISTNet
 from arch.swish import swish
 from dataset import get_binary_dataset
 from dynamics import train_kernel, train_regular, loglinspace
-from kernels import compute_kernels, kernel_intdim
+from kernels import compute_kernels, kernel_intdim, eigenvectors
 
 
 def loss_func(args, f, y):
@@ -138,6 +138,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                     'std': ktrtr.std(),
                     'norm': ktrtr.norm(),
                     'intdim': kernel_intdim(ktrtr),
+                    'eigenvectors': eigenvectors(ktrtr, ytr),
                 },
                 'test': {
                     'value': ktete.cpu() if args.store_kernel == 1 else None,
@@ -146,6 +147,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                     'std': ktete.std(),
                     'norm': ktete.norm(),
                     'intdim': kernel_intdim(ktete),
+                    'eigenvectors': eigenvectors(ktete, yte),
                 },
             },
         }
