@@ -440,6 +440,18 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     wall = perf_counter()
                     yield run
 
+        if args.final_features_ptr == 1:
+            if args.arch == 'fc':
+                parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n]
+            assert len(xtk) >= len(xtr)
+            final_features = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
+            for out in run_kernel(args, *final_features, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+                run['final_features_ptr'] = out
+
+                if perf_counter() - wall > 120:
+                    wall = perf_counter()
+                    yield run
+
     run['finished'] = True
     yield run
 
@@ -586,8 +598,9 @@ def main():
     parser.add_argument('--running_kernel', nargs='+', type=float)
     parser.add_argument('--kernel_headless', type=int, default=0)
     parser.add_argument("--final_kernel", type=int, default=0)
-    parser.add_argument("--final_features", type=int, default=0)
     parser.add_argument("--final_kernel_ptr", type=int, default=0)
+    parser.add_argument("--final_features", type=int, default=0)
+    parser.add_argument("--final_features_ptr", type=int, default=0)
     parser.add_argument("--train_kernel", type=int, default=1)
     parser.add_argument("--store_kernel", type=int, default=0)
     parser.add_argument("--delta_kernel", type=int, default=0)
