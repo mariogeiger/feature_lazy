@@ -18,7 +18,7 @@ are drawn from a Gaussian
 
 We take a fully-connected one hidden neural network of activation <img src="https://render.githubusercontent.com/render/math?math=\sigma">,
 
-<img src="https://render.githubusercontent.com/render/math?math=f(\vec x) = \frac{1}{h} \sum_{n=1}^h \beta_n \: \sigma\left(\frac{\vec \omega_n \cdot   \vec x}{\sqrt{d}} + b_n\right)">
+<img src="https://render.githubusercontent.com/render/math?math=f(\vec x) = \frac{1}{h} \sum_{n=1}^h \beta_n \: \sigma\left(\frac{\vec \omega_n \cdot   \vec x}{\sqrt{d}} %2B b_n\right)">
 
 and we train the function 
 <img src="https://render.githubusercontent.com/render/math?math=F(\vec x) = \alpha \left(f(\vec x) - f_0(\vec x)\right)">
