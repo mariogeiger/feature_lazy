@@ -355,7 +355,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         del init_kernel
 
     if args.save_function:
-        run["dataset"] = {
+        run["coordinates"] = {
             "xtr": xtr,
             "x1": torch.linspace(-3, 3, 100),
         }
