@@ -265,7 +265,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     state["neurons"] = {
                         "w": [[W[0][s, i].item() for i in range(args.d)] for s in selection],
                         "b": [B[s].item() for s in selection],
-                        "beta": [[W[1][s].item() for s in selection],
+                        "beta": [W[1][s].item() for s in selection],
                     }
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
