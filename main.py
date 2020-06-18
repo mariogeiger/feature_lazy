@@ -261,6 +261,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 if args.save_neurons:
                     torch.manual_seed(2**8 + args.save_neurons)
                     selection = torch.randint(args.h, (args.save_neurons, ))
+                    B = getattr(f.f, "B0")
                     state["neurons"] = {
                         "w": [W[0][s, :] for s in selection],
                         "b": [B[s] for s in selection],
