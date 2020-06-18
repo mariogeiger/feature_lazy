@@ -85,4 +85,4 @@ def kernel_intdim(k):
 
 def eigenvectors(k, y):
     e, v = k.symeig(eigenvectors=True)
-    return e, (v * y.reshape(-1, 1)).sum(0), v[:, :3]
+    return e, (v * y.reshape(-1, 1)).sum(0), v[:, -3:]
