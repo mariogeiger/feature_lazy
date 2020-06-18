@@ -5,15 +5,16 @@
 We consider a binary classification task where the label function 
 <img src="https://render.githubusercontent.com/render/math?math=y(\vec x)">
 depends only on one direction in the data space, namely 
-<img src="https://render.githubusercontent.com/render/math?math=y( \vec x)=y(x_1)">.
+<img src="https://render.githubusercontent.com/render/math?math=y( \vec x)=y(x_\parallel)">.
 Layers of <img src="https://render.githubusercontent.com/render/math?math=y=+1"> and 
 <img src="https://render.githubusercontent.com/render/math?math=y=-1">
-regions alternate along the direction <img src="https://render.githubusercontent.com/render/math?math=x_1">
+regions alternate along the direction <img src="https://render.githubusercontent.com/render/math?math=x_\parallel">
 , separated by parallel planes. The two labels are assumed equiprobable. The points 
 <img src="https://render.githubusercontent.com/render/math?math=\vec x"> that constitute the training and test set are iid of distribution 
-<img src="https://render.githubusercontent.com/render/math?math=\rho(\vec x) = \rho_1(x_1)\cdots\rho_d(x_d)">, where all <img src="https://render.githubusercontent.com/render/math?math=\rho_j">
-are continuous, of zero mean and of similar spatial scale. Also, the distribution <img src="https://render.githubusercontent.com/render/math?math=\rho_1">
-does not vanish at the location of the interfaces (no margin).
+<img src="https://render.githubusercontent.com/render/math?math=\rho(\vec x) = \rho_\parallel(x_\parallel)\rho_\bot(x_\bot)">, where all <img src="https://render.githubusercontent.com/render/math?math=\rho_j">
+are drawn from a Gaussian 
+<img src="https://render.githubusercontent.com/render/math?math=\mathcal{N}(0,1)">
+.
 
 We take a fully-connected one hidden neural network of activation <img src="https://render.githubusercontent.com/render/math?math=\sigma">,
 
@@ -21,7 +22,7 @@ We take a fully-connected one hidden neural network of activation <img src="http
 
 and we train the function 
 <img src="https://render.githubusercontent.com/render/math?math=F(\vec x) = \alpha \left(f(\vec x) - f_0(\vec x)\right)">
-with a discrete approximation of Gradient Flow:
+with a discrete approximation of Gradient Flow
 
 <img src="https://render.githubusercontent.com/render/math?math=\dot{W} = -\partial_W \frac{1}{p}\sum_\mu l\left(y^\mu F(\vec x^\mu)\right)">. 
 
@@ -37,8 +38,9 @@ In the following animation we show the evolution of the vectors
 <img src="https://render.githubusercontent.com/render/math?math=\beta_n \vec \omega_n">
 during training in the *feature regime*
 
-
-![6pt2_gif](https://github.com/leonardopetrini/feature_lazy/blob/experimental/stripe_wbeta_wlegend.gif)
+<p align="center">
+  <img width="350" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/experimental/stripe_wbeta_wlegend.gif">
+</p>
 
 *Note*: considering weights magnitude exploses during learning, vectors length is divided by 
 <img src="https://render.githubusercontent.com/render/math?math=\max(|\beta|\: ||\vec \omega||)">
