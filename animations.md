@@ -1,4 +1,4 @@
-## Feature vs Lazy Learning: The Stripe Model
+## Feature vs Lazy Learning: *the Stripe Model*
 
 **Reference:** [article][1]
 
@@ -52,9 +52,6 @@ in order to make them fit in the frame. Relative norms and orientations are the 
 * Number of neurons: <img src="https://render.githubusercontent.com/render/math?math=h = 10000">
 * Activation function: <img src="https://render.githubusercontent.com/render/math?math=\sigma(\cdot) = ReLU(\cdot)">
 * Hinge loss: <img src="https://render.githubusercontent.com/render/math?math=l(\hat y) = \max(0, 1 - y \cdot \hat y)">
-
-
-
 
 
 [1]:https://
