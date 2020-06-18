@@ -258,7 +258,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                     B0 = getattr(f0.f, "B0")
                     state['b'] = B.pow(2).mean().sqrt().item()
                     state['db'] = (B - B0).pow(2).mean().sqrt().item()
-                if args.save_neurons > 0:
+                if args.save_neurons:
                     torch.manual_seed(2**8 + args.save_neurons)
                     selection = torch.randint(args.h, (args.save_neurons, ))
                     state["neurons"] = {
