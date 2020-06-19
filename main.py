@@ -361,14 +361,6 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     out['dynamics'][-1]['kernel_ptr'] = out['dynamics'][-1]['kernel']
                 out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
 
-                if args.kernel_headless == 1:
-                    ktrtr, _ktetr, ktete = compute_kernels(f, xtk, xte[:len(xtk)], [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n])
-                    out['dynamics'][-1]['kernel_headless'] = {
-                        'ktrtr': ktrtr.cpu(),
-                        # 'ktetr': ktetr.cpu(),
-                        'ktete': ktete.cpu(),
-                    }
-
             if perf_counter() - wall > 120:
                 wall = perf_counter()
                 yield run
@@ -447,6 +439,28 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             final_features = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
             for out in run_kernel(args, *final_features, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_features_ptr'] = out
+
+                if perf_counter() - wall > 120:
+                    wall = perf_counter()
+                    yield run
+
+        if args.final_headless == 1:
+            parameters = [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n]
+            assert len(xtk) >= len(xtr)
+            final_features = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
+            for out in run_kernel(args, *final_features, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+                run['final_headless'] = out
+
+                if perf_counter() - wall > 120:
+                    wall = perf_counter()
+                    yield run
+
+        if args.final_headless_ptr == 1:
+            parameters = [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n]
+            assert len(xtk) >= len(xtr)
+            final_features = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
+            for out in run_kernel(args, *final_features, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+                run['final_headless_ptr'] = out
 
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
@@ -596,9 +610,10 @@ def main():
     parser.add_argument("--init_kernel_ptr", type=int, default=0)
     parser.add_argument("--regular", type=int, default=1)
     parser.add_argument('--running_kernel', nargs='+', type=float)
-    parser.add_argument('--kernel_headless', type=int, default=0)
     parser.add_argument("--final_kernel", type=int, default=0)
     parser.add_argument("--final_kernel_ptr", type=int, default=0)
+    parser.add_argument("--final_headless", type=int, default=0)
+    parser.add_argument("--final_headless_ptr", type=int, default=0)
     parser.add_argument("--final_features", type=int, default=0)
     parser.add_argument("--final_features_ptr", type=int, default=0)
     parser.add_argument("--train_kernel", type=int, default=1)
