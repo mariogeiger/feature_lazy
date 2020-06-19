@@ -149,7 +149,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                     'intdim': kernel_intdim(ktete),
                     'eigenvectors': eigenvectors(ktete, yte),
                 },
-            } if save_outputs else None,
+            } if stop else None,
         }
 
         yield out
