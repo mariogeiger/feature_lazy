@@ -427,8 +427,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             del stretch_kernel
 
         if args.final_features == 1:
-            if args.arch == 'fc':
-                parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n]
+            parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
+            assert parameters
             kernels = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
             for out in run_kernel(args, *kernels, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_features'] = out
@@ -439,8 +439,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             del kernels
 
         if args.final_features_ptr == 1:
-            if args.arch == 'fc':
-                parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n]
+            parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
+            assert parameters
             assert len(xtk) >= len(xtr)
             kernels = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
             for out in run_kernel(args, *kernels, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
