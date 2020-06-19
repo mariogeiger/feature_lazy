@@ -384,6 +384,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
                     yield run
+            if args.delta_kernel == 0:
+                del final_kernel
 
         if args.final_kernel_ptr == 1:
             assert len(xtk) >= len(xtr)
@@ -393,6 +395,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
                     yield run
+            del final_kernel_ptr
 
         if args.delta_kernel == 1:
             final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
@@ -400,6 +403,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 'train': (init_kernel[0] - final_kernel[0]).norm().item(),
                 'test': (init_kernel[1] - final_kernel[1]).norm().item(),
             }
+            del init_kernel, final_kernel
 
         if args.stretch_kernel == 1:
             assert args.save_weights
@@ -420,51 +424,56 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
                     yield run
+            del stretch_kernel
 
         if args.final_features == 1:
             if args.arch == 'fc':
                 parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n]
-            final_features = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
-            for out in run_kernel(args, *final_features, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+            kernels = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
+            for out in run_kernel(args, *kernels, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_features'] = out
 
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
                     yield run
+            del kernels
 
         if args.final_features_ptr == 1:
             if args.arch == 'fc':
                 parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n]
             assert len(xtk) >= len(xtr)
-            final_features = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
-            for out in run_kernel(args, *final_features, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+            kernels = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
+            for out in run_kernel(args, *kernels, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_features_ptr'] = out
 
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
                     yield run
+            del kernels
 
         if args.final_headless == 1:
             parameters = [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n]
             assert len(xtk) >= len(xtr)
-            final_features = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
-            for out in run_kernel(args, *final_features, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+            kernels = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
+            for out in run_kernel(args, *kernels, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_headless'] = out
 
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
                     yield run
+            del kernels
 
         if args.final_headless_ptr == 1:
             parameters = [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n]
             assert len(xtk) >= len(xtr)
-            final_features = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
-            for out in run_kernel(args, *final_features, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+            kernels = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
+            for out in run_kernel(args, *kernels, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_headless_ptr'] = out
 
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
                     yield run
+            del kernels
 
     run['finished'] = True
     yield run
