@@ -39,7 +39,7 @@ In the following animation we show the amplification effect taking place during 
 during training in the *feature regime*
 
 <p align="center">
-  <img width="350" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/experimental/stripe_wbeta_losserrstep.gif">
+  <img width="350" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/experimental/evolution_stripe_feature.gif">
 </p>
 
 The animation is consistent with the fact that the amplification factor
