@@ -80,9 +80,9 @@ def kernel_intdim(k):
     mu = twonn_ratio(dist)
     d, sigma = intrinsic_dimension(mu)
 
-    return d, sigma
+    return d.item(), sigma.item()
 
 
 def eigenvectors(k, y):
     e, v = k.cpu().symeig(eigenvectors=True)
-    return e, (v * y.cpu().reshape(-1, 1)).sum(0), v[:, -3:]
+    return e.detach(), (v * y.cpu().reshape(-1, 1)).sum(0).detach(), v[:, -3:].detach()
