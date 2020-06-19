@@ -11,8 +11,8 @@ Layers of <img src="https://render.githubusercontent.com/render/math?math=y=+1">
 regions alternate along the direction <img src="https://render.githubusercontent.com/render/math?math=x_\parallel">
 , separated by parallel planes. The two labels are assumed equiprobable. The points 
 <img src="https://render.githubusercontent.com/render/math?math=\vec x"> that constitute the training and test set are iid of distribution 
-<img src="https://render.githubusercontent.com/render/math?math=\rho(\vec x) = \rho_\parallel(x_\parallel)\rho_\bot(x_\bot)">, where all <img src="https://render.githubusercontent.com/render/math?math=\rho_j">
-are drawn from a Gaussian 
+<img src="https://render.githubusercontent.com/render/math?math=\rho(\vec x) = \rho_\parallel(x_\parallel)\rho_\bot(x_\bot)">, where all <img src="https://render.githubusercontent.com/render/math?math=\rho">
+are standard Gaussian p.d.f's 
 <img src="https://render.githubusercontent.com/render/math?math=\mathcal{N}(0,1)">
 .
 
@@ -28,9 +28,9 @@ with a discrete approximation of Gradient Flow
 
 Varying the scale 
 <img src="https://render.githubusercontent.com/render/math?math=\alpha">
-drives the network dynamics from the feature regime (small 
+drives the network dynamics from the *feature regime* (small 
 <img src="https://render.githubusercontent.com/render/math?math=\alpha">
-) to the lazy regime (large 
+) to the *lazy regime* (large 
 <img src="https://render.githubusercontent.com/render/math?math=\alpha">
 ).
 
