@@ -635,6 +635,7 @@ def main():
     parser.add_argument("--final_kernel_ptr", type=int, default=0)
     parser.add_argument("--final_headless", type=int, default=0)
     parser.add_argument("--final_headless_ptr", type=int, default=0)
+    parser.add_argument("--init_features_ptr", type=int, default=0)
     parser.add_argument("--final_features", type=int, default=0)
     parser.add_argument("--final_features_ptr", type=int, default=0)
     parser.add_argument("--train_kernel", type=int, default=1)
