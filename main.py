@@ -54,7 +54,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
     assert len(yte) == len(xte)
     assert len(ytr) == len(xtr)
 
-    tau = args.tau_over_h * args.h
+    tau = args.tau_over_h_kernel * args.h
     if args.tau_alpha_crit is not None:
         tau *= min(1, args.tau_alpha_crit / args.alpha)
 
@@ -97,8 +97,8 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             'err': (otr * ytr <= 0).double().mean().item(),
             'nd': (args.alpha * otr * ytr < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * otr * ytr).min().item(),
-            'dfnorm': otr.pow(2).mean().sqrt(),
-            'outputs': otr if save_outputs else None,
+            'dfnorm': otr.pow(2).mean().sqrt().item(),
+            'outputs': otr.detach() if save_outputs else None,
             'labels': ytr if save_outputs else None,
         }
         state['test'] = None
@@ -120,7 +120,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                 'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
                 'mind': (args.alpha * ote * yte).min().item(),
                 'dfnorm': ote.pow(2).mean().sqrt().item(),
-                'outputs': ote,
+                'outputs': ote.detach(),
                 'labels': yte,
             }
 
@@ -132,7 +132,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             'dynamics': dynamics,
             'kernel': {
                 'train': {
-                    'value': ktrtr.cpu() if args.store_kernel == 1 else None,
+                    'value': ktrtr.detach() if args.store_kernel == 1 else None,
                     'diag': ktrtr.diag().detach(),
                     'mean': ktrtr.mean().detach(),
                     'std': ktrtr.std().detach(),
@@ -141,7 +141,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                     'eigenvectors': eigenvectors(ktrtr, ytr),
                 },
                 'test': {
-                    'value': ktete.cpu() if args.store_kernel == 1 else None,
+                    'value': ktete.detach() if args.store_kernel == 1 else None,
                     'diag': ktete.diag().detach(),
                     'mean': ktete.mean().detach(),
                     'std': ktete.std().detach(),
@@ -638,6 +638,7 @@ def main():
     parser.add_argument("--f0", type=int, default=1)
 
     parser.add_argument("--tau_over_h", type=float, default=0.0)
+    parser.add_argument("--tau_over_h_kernel", type=float)
     parser.add_argument("--tau_alpha_crit", type=float)
 
     parser.add_argument("--max_wall", type=float, required=True)
@@ -668,6 +669,9 @@ def main():
 
     if args.max_wall_kernel is None:
         args.max_wall_kernel = args.max_wall
+
+    if args.tau_over_h_kernel is None:
+        args.tau_over_h_kernel = args.tau_over_h
 
     if args.seed_init == -1:
         args.seed_init = args.seed_trainset
