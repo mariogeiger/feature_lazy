@@ -314,6 +314,19 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         'N': sum(p.numel() for p in f0.parameters()),
         'finished': False,
     }
+    wall = perf_counter()
+
+    if args.init_features_ptr == 1:
+        parameters = [p for n, p in f0.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
+        assert parameters
+        kernels = compute_kernels(f0, xtr, xte[:len(xtk)], parameters)
+        for out in run_kernel(args, *kernels, f0, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
+            run['init_features_ptr'] = out
+
+            if perf_counter() - wall > 120:
+                wall = perf_counter()
+                yield run
+        del kernels
 
     if args.delta_kernel == 1 or args.init_kernel == 1:
         init_kernel = compute_kernels(f0, xtk, xte[:len(xtk)])
@@ -333,7 +346,6 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
     elif args.init_kernel == 1:
         del init_kernel
 
-    wall = perf_counter()
     if args.regular == 1:
         if args.running_kernel:
             it = iter(args.running_kernel)
