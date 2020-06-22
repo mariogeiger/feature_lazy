@@ -85,4 +85,4 @@ def kernel_intdim(k):
 
 def eigenvectors(k, y):
     e, v = k.cpu().symeig(eigenvectors=True)
-    return e.detach(), (v * y.cpu().reshape(-1, 1)).sum(0).detach(), v[:, -3:].detach()
+    return e.detach(), (v * y.cpu().reshape(-1, 1)).sum(0).detach(), v[:, -3:].clone().detach()
