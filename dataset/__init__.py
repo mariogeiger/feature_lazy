@@ -298,5 +298,5 @@ def intertwine_split(x, y, i, ps, seeds, classes):
     y = torch.stack(list(chain(*zip(*ys))))
     i = torch.stack(list(chain(*zip(*ii))))
 
-    assert len(x) >= p
+    assert len(x) >= p, "only {} elements in this dataset, asking for {}".format(len(x), p)
     return [(x[:p], y[:p], i[:p])] + intertwine_split(x[p:], y[p:], i[p:], ps, seeds, classes)
