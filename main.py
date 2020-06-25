@@ -121,7 +121,8 @@ def run_kernel(args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
         }
 
         print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}]" + \
-               " [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr} mind={d[train][mind]:.3f}]").format(d=state, ptr=len(xtr)), flush=True)
+               " [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr} mind={d[train][mind]:.3f}]" + \
+               " [test aL={d[test][aloss]:.2e} err={d[test][err]:.2f} nd={d[test][nd]}/{pte} mind={d[test][mind]:.3f}]").format(d=state, ptr=len(xtr), pte=len(xte)), flush=True)
         dynamics.append(state)
 
         out = {
