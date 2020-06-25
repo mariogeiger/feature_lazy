@@ -45,7 +45,7 @@ class SplitEval(torch.nn.Module):
         return torch.cat([self.f(x[i: i + self.size]) for i in range(0, len(x), self.size)])
 
 
-def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
+def run_kernel(args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
     assert args.f0 == 1
 
     assert ktrtr.shape == (len(xtr), len(xtr))
@@ -65,7 +65,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, otr, _velo, grad in train_kernel(ktrtr, ytr, tau, partial(loss_func_prime, args), args.max_dgrad, args.max_dout / args.alpha):
+    for state, otr, alpha, _velo, grad in train_kernel(ktrtr, ytr, tau, partial(loss_func_prime, args), args.max_dgrad, args.max_dout / args.alpha):
         save_outputs = args.save_outputs
         save = stop = False
 
@@ -101,28 +101,24 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
             'outputs': otr.detach() if save_outputs else None,
             'labels': ytr if save_outputs else None,
         }
-        state['test'] = None
 
-        if save_outputs:
-            c = torch.lstsq(otr.view(-1, 1), ktrtr).solution.flatten()
+        # if len(xte) > len(xtr):
+        #     from hessian import gradient
+        #     a = gradient(f(xtr) @ alpha, f.parameters())
+        #     ote = torch.stack([gradient(f(x[None]), f.parameters()) @ a for x in xte])
+        # else:
+        ote = ktetr @ alpha
 
-            if len(xte) > len(xtr):
-                from hessian import gradient
-                a = gradient(f(xtr) @ c, f.parameters())
-                ote = torch.stack([gradient(f(x[None]), f.parameters()) @ a for x in xte])
-            else:
-                ote = ktetr @ c
-
-            state['test'] = {
-                'loss': loss_func(args, ote, yte).mean().item(),
-                'aloss': args.alpha * loss_func(args, ote, yte).mean().item(),
-                'err': (ote * yte <= 0).double().mean().item(),
-                'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
-                'mind': (args.alpha * ote * yte).min().item(),
-                'dfnorm': ote.pow(2).mean().sqrt().item(),
-                'outputs': ote.detach(),
-                'labels': yte,
-            }
+        state['test'] = {
+            'loss': loss_func(args, ote, yte).mean().item(),
+            'aloss': args.alpha * loss_func(args, ote, yte).mean().item(),
+            'err': (ote * yte <= 0).double().mean().item(),
+            'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
+            'mind': (args.alpha * ote * yte).min().item(),
+            'dfnorm': ote.pow(2).mean().sqrt().item(),
+            'outputs': ote.detach() if save_outputs else None,
+            'labels': yte if save_outputs else None,
+        }
 
         print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}]" + \
                " [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr} mind={d[train][mind]:.3f}]").format(d=state, ptr=len(xtr)), flush=True)
@@ -130,7 +126,11 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
 
         out = {
             'dynamics': dynamics,
-            'kernel': {
+            'kernel': None,
+        }
+
+        if stop:
+            out['kernel'] = {
                 'train': {
                     'value': ktrtr.detach() if args.store_kernel == 1 else None,
                     'diag': ktrtr.diag().detach(),
@@ -149,8 +149,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, f, xtr, ytr, xte, yte):
                     'intdim': kernel_intdim(ktete),
                     'eigenvectors': eigenvectors(ktete, yte),
                 },
-            } if stop else None,
-        }
+            }
 
         yield out
         if stop:
@@ -320,7 +319,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         parameters = [p for n, p in f0.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
         assert parameters
         kernels = compute_kernels(f0, xtr, xte[:len(xtk)], parameters)
-        for out in run_kernel(args, *kernels, f0, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
+        for out in run_kernel(args, *kernels, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
             run['init_features_ptr'] = out
 
             if perf_counter() - wall > 120:
@@ -332,12 +331,12 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         init_kernel = compute_kernels(f0, xtk, xte[:len(xtk)])
 
     if args.init_kernel == 1:
-        for out in run_kernel(args, *init_kernel, f0, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+        for out in run_kernel(args, *init_kernel, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
             run['init_kernel'] = out
 
     if args.init_kernel_ptr == 1:
         init_kernel_ptr = compute_kernels(f0, xtr, xte[:len(xtk)])
-        for out in run_kernel(args, *init_kernel_ptr, f0, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
+        for out in run_kernel(args, *init_kernel_ptr, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
             run['init_kernel_ptr'] = out
         del init_kernel_ptr
 
@@ -361,13 +360,13 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     al = 0
 
                 running_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
-                for kout in run_kernel(args, *running_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+                for kout in run_kernel(args, *running_kernel, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                     out['dynamics'][-1]['kernel'] = kout
                 if args.ptr < args.ptk:
                     ktktk, ktetk, ktete = running_kernel
                     ktktk = ktktk[:len(xtr)][:, :len(xtr)]
                     ktetk = ktetk[:, :len(xtr)]
-                    for kout in run_kernel(args, ktktk, ktetk, ktete, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+                    for kout in run_kernel(args, ktktk, ktetk, ktete, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                         out['dynamics'][-1]['kernel_ptr'] = kout
                 else:
                     out['dynamics'][-1]['kernel_ptr'] = out['dynamics'][-1]['kernel']
@@ -390,7 +389,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             final_kernel_ptr = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
 
         if args.final_kernel == 1:
-            for out in run_kernel(args, *final_kernel, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+            for out in run_kernel(args, *final_kernel, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_kernel'] = out
 
                 if perf_counter() - wall > 120:
@@ -401,7 +400,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
         if args.final_kernel_ptr == 1:
             assert len(xtk) >= len(xtr)
-            for out in run_kernel(args, *final_kernel_ptr, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+            for out in run_kernel(args, *final_kernel_ptr, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_kernel_ptr'] = out
 
                 if perf_counter() - wall > 120:
@@ -430,7 +429,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             _xtr[:, 1:] = xtr[:, 1:] / lam_star
             _xte[:, 1:] = xte[:, 1:] / lam_star
             stretch_kernel = compute_kernels(f0, _xtr, _xte)
-            for out in run_kernel(args, *stretch_kernel, f0, _xtr, ytr, _xte, yte):
+            for out in run_kernel(args, *stretch_kernel, _xtr, ytr, _xte, yte):
                 run['stretch_kernel'] = out
 
                 if perf_counter() - wall > 120:
@@ -442,7 +441,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
             assert parameters
             kernels = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
-            for out in run_kernel(args, *kernels, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+            for out in run_kernel(args, *kernels, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_features'] = out
 
                 if perf_counter() - wall > 120:
@@ -455,7 +454,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             assert parameters
             assert len(xtk) >= len(xtr)
             kernels = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
-            for out in run_kernel(args, *kernels, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+            for out in run_kernel(args, *kernels, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_features_ptr'] = out
 
                 if perf_counter() - wall > 120:
@@ -467,7 +466,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             parameters = [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n]
             assert len(xtk) >= len(xtr)
             kernels = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
-            for out in run_kernel(args, *kernels, f, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
+            for out in run_kernel(args, *kernels, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_headless'] = out
 
                 if perf_counter() - wall > 120:
@@ -479,7 +478,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             parameters = [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n]
             assert len(xtk) >= len(xtr)
             kernels = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
-            for out in run_kernel(args, *kernels, f, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+            for out in run_kernel(args, *kernels, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_headless_ptr'] = out
 
                 if perf_counter() - wall > 120:

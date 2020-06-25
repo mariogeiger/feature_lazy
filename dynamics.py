@@ -200,8 +200,8 @@ def train_regular(f0, x, y, tau, loss, subf0, chunk, batch=None, max_dgrad=math.
 
 
 def train_kernel(ktrtr, ytr, tau, loss_prim, max_dgrad=math.inf, max_dout=math.inf):
-    otr = ktrtr.new_zeros(len(ytr))
-    velo = otr.clone()
+    alpha = ktrtr.new_zeros(len(ytr))
+    velo = alpha.clone()
 
     dt = 1
     step_change_dt = 0
@@ -209,8 +209,8 @@ def train_kernel(ktrtr, ytr, tau, loss_prim, max_dgrad=math.inf, max_dout=math.i
     t = 0
     current_dt = 0
 
-    lprim = loss_prim(otr, ytr)
-    grad = ktrtr @ lprim / len(ytr)
+    otr = ktrtr @ alpha
+    grad = loss_prim(otr, ytr) / len(ytr)
     dgrad, dout = 0, 0
 
     for step in itertools.count():
@@ -223,13 +223,13 @@ def train_kernel(ktrtr, ytr, tau, loss_prim, max_dgrad=math.inf, max_dout=math.i
             'dout': dout,
         }
 
-        yield state, otr, velo, grad
+        yield state, otr, alpha, velo, grad
 
-        if torch.isnan(otr).any():
+        if torch.isnan(alpha).any():
             break
 
         # 1 - Save current state
-        state = copy.deepcopy((otr, velo, t))
+        state = copy.deepcopy((alpha, velo, t))
 
         while True:
             # 2 - Make a tentative step
@@ -242,16 +242,16 @@ def train_kernel(ktrtr, ytr, tau, loss_prim, max_dgrad=math.inf, max_dout=math.i
                 velo.mul_(x).add_(-(1 - x) * grad)
             else:
                 velo.copy_(-grad)
-            otr.add_(dt * velo)
+            alpha.add_(dt * velo)
 
             t += dt
             current_dt = dt
 
             # 3 - Check if the step is small enough
-            lprim = loss_prim(otr, ytr)
-            new_grad = ktrtr @ lprim / len(ytr)
+            otr = ktrtr @ alpha
+            new_grad = loss_prim(otr, ytr) / len(ytr)
 
-            dout = velo.mul(dt).abs().max().item()
+            dout = (dt * ktrtr @ velo).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:
                 dgrad = 0
             else:
@@ -267,7 +267,7 @@ def train_kernel(ktrtr, ytr, tau, loss_prim, max_dgrad=math.inf, max_dout=math.i
 
             print("[{} +{}] [dt={:.1e} dgrad={:.1e} dout={:.1e}]".format(step, step - step_change_dt, dt, dgrad, dout), flush=True)
             step_change_dt = step
-            otr.copy_(state[0])
+            alpha.copy_(state[0])
             velo.copy_(state[1])
             t = state[2]
 
