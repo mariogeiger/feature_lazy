@@ -360,9 +360,21 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 except StopIteration:
                     al = 0
 
-                running_kernel = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
-                for kout in run_kernel(args, *running_kernel, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
-                    out['dynamics'][-1]['kernel_ptr'] = kout
+                if args.init_kernel_ptr == 1:
+                    assert len(xtk) >= len(xtr)
+                    running_kernel = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
+                    for kout in run_kernel(args, *running_kernel, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+                        out['dynamics'][-1]['kernel_ptr'] = kout
+                    del running_kernel
+                if args.init_features_ptr == 1:
+                    parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
+                    assert parameters
+                    assert len(xtk) >= len(xtr)
+                    running_kernel = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
+                    for kout in run_kernel(args, *running_kernel, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+                        out['dynamics'][-1]['features_ptr'] = kout
+                    del running_kernel
+
                 out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
 
             if perf_counter() - wall > 120:
