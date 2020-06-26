@@ -99,7 +99,7 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             'mind': (args.alpha * otr * ytr).min().item(),
             'maxd': (args.alpha * otr * ytr).max().item(),
             'dfnorm': otr.pow(2).mean().sqrt().item(),
-            'outputs': otr.detach() if save_outputs else None,
+            'outputs': otr.detach().cpu() if save_outputs else None,
             'labels': ytr if save_outputs else None,
         }
 
@@ -118,7 +118,7 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             'mind': (args.alpha * ote * yte).min().item(),
             'maxd': (args.alpha * ote * yte).max().item(),
             'dfnorm': ote.pow(2).mean().sqrt().item(),
-            'outputs': ote.detach() if save_outputs else None,
+            'outputs': ote.detach().cpu() if save_outputs else None,
             'labels': yte if save_outputs else None,
         }
 
@@ -135,8 +135,8 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
         if stop:
             out['kernel'] = {
                 'train': {
-                    'value': ktrtr.detach() if args.store_kernel == 1 else None,
-                    'diag': ktrtr.diag().detach(),
+                    'value': ktrtr.detach().cpu() if args.store_kernel == 1 else None,
+                    'diag': ktrtr.diag().detach().cpu(),
                     'mean': ktrtr.mean().item(),
                     'std': ktrtr.std().item(),
                     'norm': ktrtr.norm().item(),
@@ -144,8 +144,8 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
                     'eigenvectors': eigenvectors(ktrtr, ytr),
                 },
                 'test': {
-                    'value': ktete.detach() if args.store_kernel == 1 else None,
-                    'diag': ktete.diag().detach(),
+                    'value': ktete.detach().cpu() if args.store_kernel == 1 else None,
+                    'diag': ktete.diag().detach().cpu(),
                     'mean': ktete.mean().item(),
                     'std': ktete.std().item(),
                     'norm': ktete.norm().item(),
