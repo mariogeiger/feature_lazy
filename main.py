@@ -360,17 +360,9 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 except StopIteration:
                     al = 0
 
-                running_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
-                for kout in run_kernel(args, *running_kernel, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
-                    out['dynamics'][-1]['kernel'] = kout
-                if args.ptr < args.ptk:
-                    ktktk, ktetk, ktete = running_kernel
-                    ktktk = ktktk[:len(xtr)][:, :len(xtr)]
-                    ktetk = ktetk[:, :len(xtr)]
-                    for kout in run_kernel(args, ktktk, ktetk, ktete, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
-                        out['dynamics'][-1]['kernel_ptr'] = kout
-                else:
-                    out['dynamics'][-1]['kernel_ptr'] = out['dynamics'][-1]['kernel']
+                running_kernel = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
+                for kout in run_kernel(args, *running_kernel, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
+                    out['dynamics'][-1]['kernel_ptr'] = kout
                 out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
 
             if perf_counter() - wall > 120:
