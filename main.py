@@ -359,11 +359,6 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         for f, out in run_regular(args, f0, xtr, ytr, xte, yte):
             run['regular'] = out
             if out['dynamics'][-1]['train']['aloss'] < al * out['dynamics'][0]['train']['aloss']:
-                try:
-                    al = next(it)
-                except StopIteration:
-                    al = 0
-
                 if args.init_kernel_ptr == 1:
                     assert len(xtk) >= len(xtr)
                     running_kernel = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
@@ -380,6 +375,11 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     del running_kernel
 
                 out['dynamics'][-1]['state'] = copy.deepcopy(f.state_dict())
+
+                try:
+                    al = next(it)
+                except StopIteration:
+                    al = 0
 
             if perf_counter() - wall > 120:
                 wall = perf_counter()
