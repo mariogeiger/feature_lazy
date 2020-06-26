@@ -97,6 +97,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             'err': (otr * ytr <= 0).double().mean().item(),
             'nd': (args.alpha * otr * ytr < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * otr * ytr).min().item(),
+            'maxd': (args.alpha * otr * ytr).max().item(),
             'dfnorm': otr.pow(2).mean().sqrt().item(),
             'outputs': otr.detach() if save_outputs else None,
             'labels': ytr if save_outputs else None,
@@ -115,6 +116,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             'err': (ote * yte <= 0).double().mean().item(),
             'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * ote * yte).min().item(),
+            'maxd': (args.alpha * ote * yte).max().item(),
             'dfnorm': ote.pow(2).mean().sqrt().item(),
             'outputs': ote.detach() if save_outputs else None,
             'labels': yte if save_outputs else None,
@@ -122,7 +124,7 @@ def run_kernel(args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
 
         print(("[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}]" + \
                " [train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} nd={d[train][nd]}/{ptr} mind={d[train][mind]:.3f}]" + \
-               " [test aL={d[test][aloss]:.2e} err={d[test][err]:.2f} nd={d[test][nd]}/{pte} mind={d[test][mind]:.3f}]").format(d=state, ptr=len(xtr), pte=len(xte)), flush=True)
+               " [test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]").format(d=state, ptr=len(xtr), pte=len(xte)), flush=True)
         dynamics.append(state)
 
         out = {
@@ -268,6 +270,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'err': (otr * ytr <= 0).double().mean().item(),
             'nd': (args.alpha * otr * ytr < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * otr * ytr).min().item(),
+            'maxd': (args.alpha * otr * ytr).max().item(),
             'dfnorm': otr.pow(2).mean().sqrt(),
             'fnorm': (otr + otr0).pow(2).mean().sqrt(),
             'outputs': otr if save_outputs else None,
@@ -279,6 +282,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'err': test_err,
             'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * ote * yte).min().item(),
+            'maxd': (args.alpha * ote * yte).max().item(),
             'dfnorm': ote.pow(2).mean().sqrt(),
             'fnorm': (ote + ote0).pow(2).mean().sqrt(),
             'outputs': ote if save_outputs else None,
