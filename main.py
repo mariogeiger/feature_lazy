@@ -99,6 +99,7 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             'mind': (args.alpha * otr * ytr).min().item(),
             'maxd': (args.alpha * otr * ytr).max().item(),
             'dfnorm': otr.pow(2).mean().sqrt().item(),
+            'alpha_norm': alpha.norm().item(),
             'outputs': otr.detach().cpu() if save_outputs else None,
             'labels': ytr if save_outputs else None,
         }
