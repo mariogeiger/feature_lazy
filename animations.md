@@ -12,11 +12,7 @@ Layers of <img src="https://render.githubusercontent.com/render/math?math=y=+1">
 <img src="https://render.githubusercontent.com/render/math?math=y=-1">
 regions alternate along the direction <img src="https://render.githubusercontent.com/render/math?math=x_\parallel">
 , separated by parallel planes. The two labels are assumed equiprobable. The points 
-<img src="https://render.githubusercontent.com/render/math?math=\vec x"> that constitute the training and test set are iid of distribution 
-<img src="https://render.githubusercontent.com/render/math?math=\rho(\vec x) = \rho_\parallel(x_\parallel)\rho_\bot(\vec x_\bot)">, where all <img src="https://render.githubusercontent.com/render/math?math=\rho">
-are standard Gaussian p.d.f's 
-<img src="https://render.githubusercontent.com/render/math?math=\mathcal{N}(0,\mathbf{1})">
-.
+<img src="https://render.githubusercontent.com/render/math?math=\vec x"> that constitute the training and test set are drawn from d uncorrelated Gaussian distributions <img src="https://render.githubusercontent.com/render/math?math=\mathcal{N}(0,\mathbf{1})">.
 
 We take a fully-connected one hidden neural network of activation <img src="https://render.githubusercontent.com/render/math?math=\sigma">,
 
@@ -57,7 +53,7 @@ in order to make them fit in the frame. Relative norms and orientations are the 
 
 Considering we choose <img src="https://render.githubusercontent.com/render/math?math=\sigma(\cdot) = ReLU(\cdot)">,
 we can plot the point in space, nearest to the origin, for which the ReLU argument is zero. For each neuron, this is given by 
-<img src="https://render.githubusercontent.com/render/math?math=\vec z = - \sqrt{d}b_n \frac{\omega_n}{||\omega_n||^2}">.
+<img src="https://render.githubusercontent.com/render/math?math=\vec z = - \sqrt{d}b \frac{\omega}{||\omega||^2}">.
 
 In the following we plot the evolution during learning of
 <img src="https://render.githubusercontent.com/render/math?math=\vec z">
