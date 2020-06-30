@@ -1,4 +1,4 @@
-## Feature vs Lazy Learning
+## Compressing Uninformative Input Directions in Neural Nets
 
 **Reference:** [article][1]
 
@@ -87,6 +87,9 @@ The following animation shows the weight evolution during learning for two diffe
   <img width="700" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/msml20/cylinder_feature.gif">
 </p>
 
+Similarly to what is observed in the Stripe Model, we see an amplification of the weigths taking place in the 
+<img src="https://render.githubusercontent.com/render/math?math=\vec x_\parallel">
+directions.
 
 
 *Parameters*: 
