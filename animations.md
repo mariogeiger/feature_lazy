@@ -13,9 +13,9 @@ Layers of <img src="https://render.githubusercontent.com/render/math?math=y=+1">
 regions alternate along the direction <img src="https://render.githubusercontent.com/render/math?math=x_\parallel">
 , separated by parallel planes. The two labels are assumed equiprobable. The points 
 <img src="https://render.githubusercontent.com/render/math?math=\vec x"> that constitute the training and test set are iid of distribution 
-<img src="https://render.githubusercontent.com/render/math?math=\rho(\vec x) = \rho_\parallel(x_\parallel)\rho_\bot(x_\bot)">, where all <img src="https://render.githubusercontent.com/render/math?math=\rho">
+<img src="https://render.githubusercontent.com/render/math?math=\rho(\vec x) = \rho_\parallel(x_\parallel)\rho_\bot(\vec x_\bot)">, where all <img src="https://render.githubusercontent.com/render/math?math=\rho">
 are standard Gaussian p.d.f's 
-<img src="https://render.githubusercontent.com/render/math?math=\mathcal{N}(0,1)">
+<img src="https://render.githubusercontent.com/render/math?math=\mathcal{N}(0,\mathbf{1})">
 .
 
 We take a fully-connected one hidden neural network of activation <img src="https://render.githubusercontent.com/render/math?math=\sigma">,
@@ -26,7 +26,10 @@ and we train the function
 <img src="https://render.githubusercontent.com/render/math?math=F(\vec x) = \alpha \left(f(\vec x) - f_0(\vec x)\right)">
 with a discrete approximation of Gradient Flow
 
-<img src="https://render.githubusercontent.com/render/math?math=\dot{W} = -\partial_W \frac{1}{p}\sum_\mu l\left(y^\mu F(\vec x^\mu)\right)">. 
+<img src="https://render.githubusercontent.com/render/math?math=\dot{W} = -\partial_W \frac{1}{p}\sum_\mu l\left(y^\mu F(\vec x^\mu)\right)">,
+
+where the trained parameters are
+<img src="https://render.githubusercontent.com/render/math?math=W \in \{\vec\omega_n, b_n, \beta_n \}_{n=1}^h">.
 
 Varying the scale 
 <img src="https://render.githubusercontent.com/render/math?math=\alpha">
