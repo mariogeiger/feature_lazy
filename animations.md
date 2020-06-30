@@ -1,6 +1,8 @@
-## Feature vs Lazy Learning: *the Stripe Model*
+## Feature vs Lazy Learning
 
 **Reference:** [article][1]
+
+### *The Stripe Model*
 
 We consider a binary classification task where the label function 
 <img src="https://render.githubusercontent.com/render/math?math=y(\vec x)">
@@ -39,11 +41,11 @@ In the following animation we show the amplification effect taking place during 
 during training in the *feature regime*
 
 <p align="center">
-  <img width="350" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/experimental/evolution_stripe_feature.gif">
+  <img width="350" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/msml20/stripe_feature_d10.gif">
 </p>
 
 The animation is consistent with the fact that the amplification factor
-<img src="https://render.githubusercontent.com/render/math?math=\lambda = \sqrt{\frac{\langle \omega_\parallel^2\rangle_h}{\langle\bar\omega_\bot^2\rangle_h}}">
+<img src="https://render.githubusercontent.com/render/math?math=\Lambda = \sqrt{\frac{\langle \omega_\parallel^2\rangle_h}{\langle\bar\omega_\bot^2\rangle_h}}">
 diverges. 
 
 *Note*: considering weights magnitude exploses during learning, vectors length is divided by 
@@ -63,6 +65,28 @@ which says if the ReLU function is oriented towards the origin or away from it
 <p align="center">
   <img width="700" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/experimental/particles_stripe_feature.gif">
 </p>
+
+
+### *The Cylinder Model*
+
+We consider here an extension of the stripe model where the labelling function 
+<img src="https://render.githubusercontent.com/render/math?math=y( \vec x)">
+depends on a subset of coordinates 
+<img src="https://render.githubusercontent.com/render/math?math=\vec x_\parallel">
+of dimension 
+<img src="https://render.githubusercontent.com/render/math?math=d_\parallel < d">.
+Specifically, <img src="https://render.githubusercontent.com/render/math?math=y( \vec x) = y(||\vec x_\parallel||)">.
+
+We train a fully connected architecture on this dataset, as described in the previous section. We choose 
+<img src="https://render.githubusercontent.com/render/math?math=d = 3"> and
+<img src="https://render.githubusercontent.com/render/math?math=d_\parallel = 2">.
+
+The following animation shows the weight evolution during learning for two different sections of the 3d space:
+
+<p align="center">
+  <img width="700" height="350" src="https://github.com/leonardopetrini/feature_lazy/blob/msml20/cylinder_feature.gif">
+</p>
+
 
 
 *Parameters*: 
