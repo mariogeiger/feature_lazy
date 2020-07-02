@@ -1,4 +1,4 @@
-## Compressing Uninformative Input Directions in Neural Nets
+## Compressing Invariant Manifolds in Neural Nets
 
 **Reference:** [article][1]
 
