@@ -95,9 +95,9 @@ def get_binary_dataset(dataset, ps, seeds, d, params=None, device=None, dtype=No
 
 @functools.lru_cache(maxsize=2)
 def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
-    # import torchvision
+    import torchvision
 
-    # transform = torchvision.transforms.ToTensor()
+    transform = torchvision.transforms.ToTensor()
 
     torch.manual_seed(seeds[0])
 
