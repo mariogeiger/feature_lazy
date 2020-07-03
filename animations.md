@@ -64,7 +64,7 @@ is non-negligible). Points are colored depending on
 which says if the ReLU function is oriented towards the origin or away from it
 .
 <p align="center">
-  <img width="800" src="https://github.com/leonardopetrini/feature_lazy/blob/experimental/particles_stripe_feature.gif">
+  <img width="800" src="https://github.com/leonardopetrini/feature_lazy/blob/compressing_invariant_manifolds/gifs/particles_stripe_feature.gif">
 </p>
 
 We can distinguish here the three temporal regimes described in the paper:
