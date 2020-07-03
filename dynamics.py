@@ -72,15 +72,15 @@ class ContinuousMomentum(torch.optim.Optimizer):
 
                 if tau > 0:
                     x = math.exp(-dt / tau)
-                    v.mul_(x).add_(-(1 - x), p.grad.data)
+                    v.mul_(x).add_(-(1 - x) * p.grad.data)
                 elif tau < 0:
                     mu = -tau
                     x = (t / (t + dt)) ** mu
-                    v.mul_(x).add_(-(1 - x), p.grad.data)
+                    v.mul_(x).add_(-(1 - x) * p.grad.data)
                 else:
                     v = -p.grad.data
 
-                p.data.add_(dt, v)
+                p.data.add_(dt * v)
                 param_state['t'] += dt
 
         return loss
@@ -113,7 +113,7 @@ def output_gradient(f, loss, x, y, out0, chunk):
     return torch.cat(out), grad
 
 
-def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgrad=math.inf, max_dout=math.inf):
+def train_regular(f0, x, y, tau, loss, subf0, chunk, batch=None, max_dgrad=math.inf, max_dout=math.inf):
     if batch is None:
         batch = len(x)
 
@@ -122,8 +122,12 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgra
     with torch.no_grad():
         with torch.no_grad():
             out0 = f0(x)
-        if not subf0:
-            out0 = torch.zeros_like(out0)
+        if isinstance(subf0, bool):
+            if not subf0:
+                out0 = torch.zeros_like(out0)
+        else:
+            assert out0.shape == subf0.shape
+            out0 = subf0
 
     dt = 1
     current_dt = 0
@@ -163,7 +167,10 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgra
             # 3 - Check if the step is small enough
             new_out, new_grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
-            dout = (out - new_out).mul(alpha).abs().max().item()
+            if torch.isnan(new_out).any():
+                break
+
+            dout = (out - new_out).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:
                 dgrad = 0
             else:
@@ -192,9 +199,9 @@ def train_regular(f0, x, y, tau, alpha, loss, subf0, chunk, batch=None, max_dgra
             out, grad = output_gradient(f, loss, x[bi], y[bi], out0[bi], chunk)
 
 
-def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout=math.inf):
-    otr = ktrtr.new_zeros(len(ytr))
-    velo = otr.clone()
+def train_kernel(ktrtr, ytr, tau, loss_prim, max_dgrad=math.inf, max_dout=math.inf):
+    alpha = ktrtr.new_zeros(len(ytr))
+    velo = alpha.clone()
 
     dt = 1
     step_change_dt = 0
@@ -202,8 +209,8 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
     t = 0
     current_dt = 0
 
-    lprim = loss_prim(otr, ytr)
-    grad = ktrtr @ lprim / len(ytr)
+    otr = ktrtr @ alpha
+    grad = loss_prim(otr, ytr) / len(ytr)
     dgrad, dout = 0, 0
 
     for step in itertools.count():
@@ -216,35 +223,35 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
             'dout': dout,
         }
 
-        yield state, otr, velo, grad
+        yield state, otr, alpha, velo, grad
 
-        if torch.isnan(otr).any():
+        if torch.isnan(alpha).any():
             break
 
         # 1 - Save current state
-        state = copy.deepcopy((otr, velo, t))
+        state = copy.deepcopy((alpha, velo, t))
 
         while True:
             # 2 - Make a tentative step
             if tau > 0:
                 x = math.exp(-dt / tau)
-                velo.mul_(x).add_(-(1 - x), grad)
+                velo.mul_(x).add_(-(1 - x) * grad)
             elif tau < 0:
                 mu = -tau
                 x = (t / (t + dt)) ** mu
-                velo.mul_(x).add_(-(1 - x), grad)
+                velo.mul_(x).add_(-(1 - x) * grad)
             else:
                 velo.copy_(-grad)
-            otr.add_(dt, velo)
+            alpha.add_(dt * velo)
 
             t += dt
             current_dt = dt
 
             # 3 - Check if the step is small enough
-            lprim = loss_prim(otr, ytr)
-            new_grad = ktrtr @ lprim / len(ytr)
+            otr = ktrtr @ alpha
+            new_grad = loss_prim(otr, ytr) / len(ytr)
 
-            dout = velo.mul(dt * alpha).abs().max().item()
+            dout = (dt * ktrtr @ velo).abs().max().item()
             if grad.norm() == 0 or new_grad.norm() == 0:
                 dgrad = 0
             else:
@@ -260,9 +267,68 @@ def train_kernel(ktrtr, ytr, tau, alpha, loss_prim, max_dgrad=math.inf, max_dout
 
             print("[{} +{}] [dt={:.1e} dgrad={:.1e} dout={:.1e}]".format(step, step - step_change_dt, dt, dgrad, dout), flush=True)
             step_change_dt = step
-            otr.copy_(state[0])
+            alpha.copy_(state[0])
             velo.copy_(state[1])
             t = state[2]
+
+        # 5 - If yes, compute the new output and gradient
+        grad = new_grad
+
+
+def ode_evolve(var0, grad_fn, max_dgrad):
+    var = copy.deepcopy(var0)
+
+    dt = 1
+    current_dt = 0
+
+    t = 0
+
+    grad = grad_fn(var)
+    dgrad = 0
+
+    for step in itertools.count():
+
+        state = {
+            'step': step,
+            't': t,
+            'dt': current_dt,
+            'dgrad': dgrad,
+        }
+
+        yield state, var, grad
+
+        if torch.isnan(grad).any():
+            break
+
+        # 1 - Save current state
+        state = copy.deepcopy((var, t))
+
+        while True:
+            # 2 - Make a tentative step
+            var.add_(dt * grad)
+            t += dt
+            current_dt = dt
+
+            # 3 - Check if the step is small enough
+            new_grad = grad_fn(var)
+
+            if torch.isnan(new_grad).any():
+                break
+
+            if grad.norm() == 0 or new_grad.norm() == 0:
+                dgrad = 0
+            else:
+                dgrad = (grad - new_grad).norm().pow(2).div(grad.norm() * new_grad.norm()).item()
+
+            if dgrad < max_dgrad:
+                if dgrad < 0.5 * max_dgrad:
+                    dt *= 1.1
+                break
+
+            # 4 - If not, reset and retry
+            dt /= 10
+
+            var, t = copy.deepcopy(state)
 
         # 5 - If yes, compute the new output and gradient
         grad = new_grad

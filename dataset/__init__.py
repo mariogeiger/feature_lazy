@@ -180,13 +180,16 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             y = (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
         if dataset == 'sphere':
             r = x.norm(dim=1)
-            y = (r**2 > d - 2 / 3)
+            y = r**2 > d * (1 - 2 / (9 * d))**3
         if dataset == 'cylinder':
             dsph = int(params[0])
             stretching = params[1]
             x[:, dsph:] *= stretching
             r = x[:, :dsph].norm(dim=1)
-            y = (r**2 > dsph - 2 / 3)
+            if dsph == 2:
+                y = r > inverf2(1/2)
+            else:
+                y = (r**2 > dsph - 2 / 3)
         if dataset == 'cube':
             a = scipy.special.erfinv(0.5**(1 / d)) * 2**0.5
             y = (x.abs() < a).all(1)
@@ -196,6 +199,8 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
             y = (x[:, 0] > 0) * (x[:, 1] > 0)
         if dataset == 'andD':  # multi-dimensional AND logic gate (all d dimensions are relevant)
             y = (x > 0).all(1)
+        if dataset == 'boolmat':  # Boolean Matrix. label of a point = sign of product of all its coordinates. Separates the d-dimensional space in 2^d quadrants.
+            y = torch.prod(x, axis=1) > 0
         if dataset == 'sphere_grid':
             assert d == 2, "Spherical grid is only implemented in 2D"
             bins = int(params[0])
@@ -296,5 +301,5 @@ def intertwine_split(x, y, i, ps, seeds, classes):
     y = torch.stack(list(chain(*zip(*ys))))
     i = torch.stack(list(chain(*zip(*ii))))
 
-    assert len(x) >= p
+    assert len(x) >= p, "only {} elements in this dataset, asking for {}".format(len(x), p)
     return [(x[:p], y[:p], i[:p])] + intertwine_split(x[p:], y[p:], i[p:], ps, seeds, classes)

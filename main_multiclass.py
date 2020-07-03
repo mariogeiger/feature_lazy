@@ -53,9 +53,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, f, otr, _otr0, grad, _bi in train_regular(f0, xtr, ytr, tau, args.alpha,
+    for state, f, otr, _otr0, grad, _bi in train_regular(f0, xtr, ytr, tau,
                                                          partial(loss_func, args), bool(args.f0),
-                                                         args.chunk, args.bs, args.max_dgrad, args.max_dout):
+                                                         args.chunk, args.bs, args.max_dgrad, args.max_dout / args.alpha):
         save_outputs = args.save_outputs
         save = stop = False
 
