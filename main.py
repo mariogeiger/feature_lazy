@@ -182,6 +182,10 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
+    if args.save_function:
+        it_function = iter(args.save_function)
+        al_function = next(it_function)
+
     wall = perf_counter()
     dynamics = []
     for state, f, otr, _otr0, grad, _bi in train_regular(f0, xtr, ytr, tau,
@@ -258,11 +262,20 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 state['dw'] = [(W[0][:, j] - W0[0][:, j]).pow(2).mean().sqrt().item() for j in range(args.d)]
                 state['beta'] = W[1].pow(2).mean().sqrt().item()
                 state['dbeta'] = (W[1] - W0[1]).pow(2).mean().sqrt().item()
+                state["lambda"] = state['w'][0] / W[0][:, 1:].pow(2).sum(axis=1).mean().sqrt().item()
                 if args.bias:
                     B = getattr(f.f, "B0")
                     B0 = getattr(f0.f, "B0")
                     state['b'] = B.pow(2).mean().sqrt().item()
                     state['db'] = (B - B0).pow(2).mean().sqrt().item()
+                if args.save_neurons:
+                    torch.manual_seed(2**8 + args.save_neurons)
+                    selection = torch.randint(args.h, (args.save_neurons, ))
+                    state["neurons"] = {
+                        "w": [[W[0][s, i].item() for i in range(args.d)] for s in selection],
+                        "b": [B[s].item() for s in selection],
+                        "beta": [W[1][s].item() for s in selection],
+                    }
 
         state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
         state['train'] = {
@@ -289,6 +302,22 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'outputs': ote if save_outputs else None,
             'labels': yte if save_outputs else None,
         }
+
+        if args.save_function:
+            if state['train']['aloss'] < al_function:
+                try:
+                    al_function = next(it_function)
+                except StopIteration:
+                    al_function = 0
+                x1 = torch.zeros(100, args.d, dtype=torch.float64)
+                x1[:, 0] = torch.linspace(-3, 3, 100)
+                x1 = x1.to(device=args.device, dtype=torch.get_default_dtype())
+                y1 = args.alpha * (f(x1) - f0(x1))
+                state["function"] = {
+                    "x1": y1,
+                    "xtr": otr,
+                }
+
         print(
             (
                 "[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] " + \
@@ -350,6 +379,12 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         init_kernel = (init_kernel[0].cpu(), init_kernel[2].cpu())
     elif args.init_kernel == 1:
         del init_kernel
+
+    if args.save_function:
+        run["coordinates"] = {
+            "xtr": xtr,
+            "x1": torch.linspace(-3, 3, 100),
+        }
 
     if args.regular == 1:
         if args.running_kernel:
@@ -428,7 +463,9 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
         if args.stretch_kernel == 1:
             assert args.save_weights
-            lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
+            #lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
+            #lam = [x["w"][0] / torch.tensor(x["w"][1:]).pow(2).mean().sqrt().item() for x in run['regular']["dynamics"]]
+            lam = [x["lambda"] for x in run['regular']["dynamics"]]
             frac = [(args.ptr - x["train"]["nd"]) / args.ptr for x in run['regular']["dynamics"]]
             for _lam, _frac in zip(lam, frac):
                 if _frac > 0.1:
@@ -655,6 +692,8 @@ def main():
     parser.add_argument("--save_outputs", type=int, default=0)
     parser.add_argument("--save_state", type=int, default=0)
     parser.add_argument("--save_weights", type=int, default=0)
+    parser.add_argument("--save_neurons", type=int, default=0)
+    parser.add_argument("--save_function", nargs='+', type=float)
 
     parser.add_argument("--alpha", type=float, required=True)
     parser.add_argument("--f0", type=int, default=1)
