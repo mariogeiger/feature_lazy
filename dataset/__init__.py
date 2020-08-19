@@ -101,6 +101,13 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
 
     torch.manual_seed(seeds[0])
 
+    if dataset == "higgs":
+        from .higgs2bb import Higgs2BB
+        tr = Higgs2BB('~/.torchvision/datasets/HIGGS2BB', files=[0, 1, 10])
+        x, y, i = intertwine_labels(tr.x, tr.y, torch.arange(len(tr)))
+        x = center_normalize(x)
+        return intertwine_split(x, y, i, ps, seeds, y.unique())
+
     if dataset == "mnist":
         tr = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=True, download=True, transform=transform)
         te = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=False, transform=transform)
