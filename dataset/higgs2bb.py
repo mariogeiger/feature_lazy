@@ -80,7 +80,7 @@ class Higgs2BB(torch.utils.data.Dataset):
             url = self.url.format(i)
 
             if not os.path.exists(path):
-                print('Download {}'.format(path), flush=True)
+                print('wget -c {} -O {}'.format(url, path), flush=True)
 
                 r = requests.get(url, stream=True)
                 with open(path, 'wb') as f:
@@ -143,8 +143,8 @@ class Higgs2BB(torch.utils.data.Dataset):
             feature_array = feature_array[(spec_array[:, 0] > 40) & (spec_array[:, 0] < 200) & (spec_array[:, 1] > 300) & (spec_array[:, 1] < 2000)]
             label_array = label_array[(spec_array[:, 0] > 40) & (spec_array[:, 0] < 200) & (spec_array[:, 1] > 300) & (spec_array[:, 1] < 2000)]
 
-        feature_array = feature_array[np.sum(self.label_array, axis=1) == 1]
-        label_array = label_array[np.sum(self.label_array, axis=1) == 1]
+        feature_array = feature_array[np.sum(label_array, axis=1) == 1]
+        label_array = label_array[np.sum(label_array, axis=1) == 1]
 
         feature_array = torch.tensor(feature_array)
         label_array = torch.tensor(label_array)
