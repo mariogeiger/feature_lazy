@@ -242,6 +242,7 @@ plt.ylabel("test error")
 
 plt.xlim(ps[0], ps[-1])
 triangle(5e2, 2.5e3, 7e-2, slope=-1 / 2, fmt="-1/2")
+triangle(2e3, 6e3, 1e-1, slope=-1 / 3, fmt='-1/3')
 
 plt.tight_layout()
 plt.savefig("MMNASswish_p.pgf")
