@@ -121,7 +121,10 @@ def train_regular(f0, x, y, tau, loss, subf0, chunk, batch=None, max_dgrad=math.
 
     with torch.no_grad():
         with torch.no_grad():
-            out0 = f0(x)
+            out0 = []
+            for i in [slice(i, i + chunk) for i in range(0, len(x), chunk)]:
+                out0.append(f0(x[i]))
+            out0 = torch.cat(out0)
         if isinstance(subf0, bool):
             if not subf0:
                 out0 = torch.zeros_like(out0)
