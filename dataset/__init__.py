@@ -44,23 +44,6 @@ def pca(x, d, whitening):
     return u
 
 
-# def get_binary_pca_dataset(dataset, p, d, whitening, seed=None, device=None):
-#     if seed is None:
-#         seed = torch.randint(2 ** 32, (), dtype=torch.long).item()
-
-#     x, y = get_normalized_dataset(dataset, seed)
-
-#     x = pca(x, d, whitening).to(device)
-#     y = (2 * (torch.arange(len(y)) % 2) - 1).type(x.dtype).to(device)
-
-#     xtr = x[:p]
-#     xte = x[p:]
-#     ytr = y[:p]
-#     yte = y[p:]
-
-#     return (xtr, ytr), (xte, yte)
-
-
 def get_dataset(dataset, ps, seeds, d, params=None, device=None, dtype=None):
     sets = get_normalized_dataset(dataset, ps, seeds, d, params)
 
@@ -113,6 +96,14 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
         te = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=False, transform=transform)
         x, y, i = intertwine_labels(*dataset_to_tensors(list(tr) + list(te)))
         x = center_normalize(x)
+        return intertwine_split(x, y, i, ps, seeds, y.unique())
+
+    if dataset == "pca_mnist":
+        tr = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=True, download=True, transform=transform)
+        te = torchvision.datasets.MNIST('~/.torchvision/datasets/MNIST', train=False, transform=transform)
+        x, y, i = intertwine_labels(*dataset_to_tensors(list(tr) + list(te)))
+        x = center_normalize(x)
+        x = pca(x, d, whitening=False)
         return intertwine_split(x, y, i, ps, seeds, y.unique())
 
     if dataset == "kmnist":

@@ -1,4 +1,4 @@
-# pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable, not-callable
+# pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable, not-callable, unbalanced-tuple-unpacking
 import argparse
 import copy
 import os
