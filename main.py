@@ -710,14 +710,14 @@ def main():
     if args.seed_init == -1:
         args.seed_init = args.seed_trainset
 
-    torch.save(args, args.pickle)
+    torch.save(args, args.pickle, _use_new_zipfile_serialization=False)
     saved = False
     try:
         for res in execute(args):
             res['git'] = git
             with open(args.pickle, 'wb') as f:
-                torch.save(args, f)
-                torch.save(res, f)
+                torch.save(args, f, _use_new_zipfile_serialization=False)
+                torch.save(res, f, _use_new_zipfile_serialization=False)
                 saved = True
     except:
         if not saved:
