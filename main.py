@@ -1,8 +1,9 @@
-# pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable, not-callable, unbalanced-tuple-unpacking
+# pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable, not-callable, unbalanced-tuple-unpacking, abstract-method
 import argparse
 import copy
 import os
 import subprocess
+import math
 from functools import partial
 from time import perf_counter
 
@@ -12,8 +13,15 @@ from arch import CV, FC, FixedAngles, FixedWeights, Wide_ResNet, Conv1d
 from arch.mnas import MnasNetLike, MNISTNet
 from arch.swish import swish
 from dataset import get_binary_dataset
-from dynamics import train_kernel, train_regular, loglinspace
 from kernels import compute_kernels, kernel_intdim, eigenvectors
+from gradientflow import gradientflow_backprop, gradientflow_kernel
+
+
+def loglinspace(step, tau, end=None):
+    t = 0
+    while end is None or t <= end:
+        yield t
+        t = int(t + 1 + step * (1 - math.exp(-t / tau)))
 
 
 def loss_func(args, f, y):
@@ -65,9 +73,12 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, otr, alpha, _velo, grad in train_kernel(ktrtr, ytr, tau, partial(loss_func_prime, args), args.max_dgrad, args.max_dout / args.alpha):
+    for state, internals in gradientflow_kernel(ktrtr, ytr, tau, partial(loss_func_prime, args), args.max_dgrad, args.max_dout / args.alpha):
         save_outputs = args.save_outputs
         save = stop = False
+
+        otr = internals['output']
+        grad = internals['gradient']
 
         if state['step'] == checkpoint:
             checkpoint = next(checkpoint_generator)
@@ -99,7 +110,7 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             'mind': (args.alpha * otr * ytr).min().item(),
             'maxd': (args.alpha * otr * ytr).max().item(),
             'dfnorm': otr.pow(2).mean().sqrt().item(),
-            'alpha_norm': alpha.norm().item(),
+            'alpha_norm': internals['parameters'].norm().item(),
             'outputs': otr.detach().cpu() if save_outputs else None,
             'labels': ytr if save_outputs else None,
         }
@@ -109,7 +120,7 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
         #     a = gradient(f(xtr) @ alpha, f.parameters())
         #     ote = torch.stack([gradient(f(x[None]), f.parameters()) @ a for x in xte])
         # else:
-        ote = ktetr @ alpha
+        ote = ktetr @ internals['parameters']
 
         state['test'] = {
             'loss': loss_func(args, ote, yte).mean().item(),
@@ -184,11 +195,12 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, f, otr, _otr0, grad, _bi in train_regular(f0, xtr, ytr, tau,
-                                                         partial(loss_func, args), bool(args.f0),
-                                                         args.chunk, args.bs, args.max_dgrad, args.max_dout / args.alpha):
+    for state, internals in gradientflow_backprop(f0, xtr, ytr, partial(loss_func, args), bool(args.f0), tau,
+                                                  args.chunk, args.bs, args.max_dgrad, args.max_dout / args.alpha):
         save_outputs = args.save_outputs
         save = stop = False
+        otr = internals['output']
+        f = internals['f']
 
         if state['step'] == checkpoint:
             checkpoint = next(checkpoint_generator)
@@ -240,7 +252,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 tmp_outputs_index = len(dynamics)
                 save_outputs = True
 
-        state['grad_norm'] = grad.norm().item()
+        state['grad_norm'] = internals['gradient'].norm().item()
         state['wall'] = perf_counter() - wall
         state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
         state['dnorm'] = sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item()
