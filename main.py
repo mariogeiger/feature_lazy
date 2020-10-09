@@ -224,6 +224,14 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         if not save:
             continue
 
+        state['grad_norm'] = internals['gradient'].norm().item()
+        state['wall'] = perf_counter() - wall
+        state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
+        state['dnorm'] = sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item()
+
+        if state['grad_norm'] == 0:
+            save = save_outputs = stop = True
+
         if len(otr) < len(xtr):
             with torch.no_grad():
                 otr = f(xtr) - otr0
@@ -251,11 +259,6 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             if not save_outputs:
                 tmp_outputs_index = len(dynamics)
                 save_outputs = True
-
-        state['grad_norm'] = internals['gradient'].norm().item()
-        state['wall'] = perf_counter() - wall
-        state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
-        state['dnorm'] = sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item()
 
         if args.arch == 'fc':
             def getw(f, i):
