@@ -440,6 +440,47 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 'traink': (init_kernel[0] - final_kernel[0]).norm().item(),
                 'test': (init_kernel[1] - final_kernel[1]).norm().item(),
             }
+            run['delta_kernel']['init'] = {
+                'traink': {
+                    'value': init_kernel[0].detach().cpu() if args.store_kernel == 1 else None,
+                    'diag': init_kernel[0].diag().detach().cpu(),
+                    'mean': init_kernel[0].mean().item(),
+                    'std': init_kernel[0].std().item(),
+                    'norm': init_kernel[0].norm().item(),
+                    'intdim': kernel_intdim(init_kernel[0]),
+                    'eigenvectors': eigenvectors(init_kernel[0], ytr),
+                },
+                'test': {
+                    'value': init_kernel[1].detach().cpu() if args.store_kernel == 1 else None,
+                    'diag': init_kernel[1].diag().detach().cpu(),
+                    'mean': init_kernel[1].mean().item(),
+                    'std': init_kernel[1].std().item(),
+                    'norm': init_kernel[1].norm().item(),
+                    'intdim': kernel_intdim(init_kernel[1]),
+                    'eigenvectors': eigenvectors(init_kernel[1], yte),
+                },
+            }
+            run['delta_kernel']['final'] = {
+                'traink': {
+                    'value': final_kernel[0].detach().cpu() if args.store_kernel == 1 else None,
+                    'diag': final_kernel[0].diag().detach().cpu(),
+                    'mean': final_kernel[0].mean().item(),
+                    'std': final_kernel[0].std().item(),
+                    'norm': final_kernel[0].norm().item(),
+                    'intdim': kernel_intdim(final_kernel[0]),
+                    'eigenvectors': eigenvectors(final_kernel[0], ytr),
+                },
+                'test': {
+                    'value': final_kernel[1].detach().cpu() if args.store_kernel == 1 else None,
+                    'diag': final_kernel[1].diag().detach().cpu(),
+                    'mean': final_kernel[1].mean().item(),
+                    'std': final_kernel[1].std().item(),
+                    'norm': final_kernel[1].norm().item(),
+                    'intdim': kernel_intdim(final_kernel[1]),
+                    'eigenvectors': eigenvectors(final_kernel[1], yte),
+                },
+            }
+
             del init_kernel, final_kernel
 
         if args.stretch_kernel == 1:
