@@ -1,20 +1,21 @@
 # pylint: disable=C, R, bare-except, arguments-differ, no-member, undefined-loop-variable, not-callable, unbalanced-tuple-unpacking, abstract-method
 import argparse
 import copy
+import math
 import os
 import subprocess
-import math
 from functools import partial
 from time import perf_counter
 
 import torch
+from gradientflow import gradientflow_backprop, gradientflow_kernel
+from grid import zip_save
 
-from arch import CV, FC, FixedAngles, FixedWeights, Wide_ResNet, Conv1d
+from arch import CV, FC, Conv1d, FixedAngles, FixedWeights, Wide_ResNet
 from arch.mnas import MnasNetLike, MNISTNet
 from arch.swish import swish
 from dataset import get_binary_dataset
-from kernels import compute_kernels, kernel_intdim, eigenvectors
-from gradientflow import gradientflow_backprop, gradientflow_kernel
+from kernels import compute_kernels, eigenvectors, kernel_intdim
 
 
 def loglinspace(step, tau, end=None):
@@ -695,14 +696,14 @@ def main():
     parser.add_argument("--ckpt_step", type=int, default=100)
     parser.add_argument("--ckpt_tau", type=float, default=1e4)
 
-    parser.add_argument("--pickle", type=str, required=True)
+    parser.add_argument("--output", type=str, required=True)
     args = parser.parse_args()
 
     if args.pte is None:
         args.pte = args.ptr
 
     if args.chunk is None:
-        args.chunk = max(args.ptr, args.pte, args.ptk)
+        args.chunk = max(args.ptr, args.pte, args.ptk, 100000)
 
     if args.max_wall_kernel is None:
         args.max_wall_kernel = args.max_wall
@@ -713,18 +714,16 @@ def main():
     if args.seed_init == -1:
         args.seed_init = args.seed_trainset
 
-    torch.save(args, args.pickle, _use_new_zipfile_serialization=False)
+    zip_save(args.output, {'args': args})
     saved = False
     try:
         for res in execute(args):
             res['git'] = git
-            with open(args.pickle, 'wb') as f:
-                torch.save(args, f, _use_new_zipfile_serialization=False)
-                torch.save(res, f, _use_new_zipfile_serialization=False)
-                saved = True
+            zip_save(args.output, {'args': args, 'data': res})
+            saved = True
     except:
         if not saved:
-            os.remove(args.pickle)
+            os.remove(args.output)
         raise
 
 
