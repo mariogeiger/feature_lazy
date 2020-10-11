@@ -28,7 +28,7 @@ def main():
         alpha = math.sqrt(alpha_min * alpha_max)
         param = (('h', args.h), ('alpha', alpha), ('seed_init', args.seed_init), ('ptr', args.ptr))
         data = exec_blocking(args.log_dir, args.cmd, param)
-        if data['delta_kernel']['traink'] < 1:
+        if data['delta_kernel']['traink'] < data['delta_kernel']['init']['traink']['norm']:
             alpha_min = alpha
         else:
             alpha_max = alpha
