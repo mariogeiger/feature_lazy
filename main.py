@@ -668,7 +668,6 @@ def main():
     parser.add_argument("--ptk", type=int, default=0)
     parser.add_argument("--pte", type=int)
     parser.add_argument("--d", type=int)
-    parser.add_argument("--whitening", type=int, default=1)
     parser.add_argument("--data_param1", type=int,
                         help="Sphere dimension if dataset = Cylinder."
                         "Total number of cells, if dataset = sphere_grid. "
