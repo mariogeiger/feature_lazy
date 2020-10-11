@@ -437,7 +437,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         if args.delta_kernel == 1:
             final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
             run['delta_kernel'] = {
-                'train': (init_kernel[0] - final_kernel[0]).norm().item(),
+                'traink': (init_kernel[0] - final_kernel[0]).norm().item(),
                 'test': (init_kernel[1] - final_kernel[1]).norm().item(),
             }
             del init_kernel, final_kernel
