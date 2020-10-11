@@ -24,7 +24,7 @@ def main():
     alpha_min = args.alpha_min
     alpha_max = args.alpha_max
 
-    while alpha_max / alpha_min < args.tol:
+    while alpha_max / alpha_min > args.tol:
         alpha = math.sqrt(alpha_min * alpha_max)
         param = (('h', args.h), ('alpha', alpha), ('seed_init', args.seed_init), ('ptr', args.ptr))
         data = exec_blocking(args.log_dir, args.cmd, param)
