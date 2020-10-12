@@ -14,6 +14,7 @@ def main():
     parser.add_argument("--alpha_min", type=float)
     parser.add_argument("--alpha_max", type=float)
     parser.add_argument("--tol", type=float)
+    parser.add_argument("--c", type=float)
     parser.add_argument("--h", type=int)
 
     parser.add_argument("--seed_init", type=int)
@@ -28,7 +29,7 @@ def main():
         alpha = math.sqrt(alpha_min * alpha_max)
         param = (('h', args.h), ('alpha', alpha), ('seed_init', args.seed_init), ('ptr', args.ptr))
         data = exec_blocking(args.log_dir, args.cmd, param)
-        if data['delta_kernel']['traink'] < data['delta_kernel']['init']['traink']['norm']:
+        if data['delta_kernel']['traink'] < args.c * data['delta_kernel']['init']['traink']['norm']:
             alpha_max = alpha
         else:
             alpha_min = alpha
