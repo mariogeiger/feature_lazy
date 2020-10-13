@@ -190,6 +190,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     wall_best_test_error = perf_counter()
     tmp_outputs_index = -1
     margin = 0
+    n_changed_dt = 0
 
     checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
@@ -202,6 +203,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         save = stop = False
         otr = internals['output']
         f = internals['f']
+        n_changed_dt += internals['changed_dt']
 
         if state['step'] == checkpoint:
             checkpoint = next(checkpoint_generator)
@@ -308,13 +310,15 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         print(
             (
                 "[i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] " + \
-                "[dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}] " + \
+                "[{ndt}dt={d[dt]:.1e} dg={d[dgrad]:.1e} do={d[dout]:.1e}] " + \
                 "[train aL={d[train][aloss]:.2e} err={d[train][err]:.2f} " + \
                 "nd={d[train][nd]}/{p} mind={d[train][mind]:.3f}] " + \
                 "[test aL={d[test][aloss]:.2e} err={d[test][err]:.2f}]"
-            ).format(d=state, p=len(ytr)),
+            ).format(d=state, p=len(ytr), ndt=("+{} ".format(n_changed_dt) if n_changed_dt else "")),
             flush=True
         )
+        n_changed_dt = 0
+
         dynamics.append(state)
 
         out = {
