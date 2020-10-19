@@ -5,6 +5,11 @@ import math
 from grid.exec import exec_blocking
 
 
+def round_mantissa(x, n):
+    m = round(math.log2(x))
+    return round(2**(n-m) * x) * 2**(m-n)
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -13,7 +18,7 @@ def main():
 
     parser.add_argument("--alpha_min", type=float)
     parser.add_argument("--alpha_max", type=float)
-    parser.add_argument("--tol", type=float)
+    parser.add_argument("--tol", type=int)
     parser.add_argument("--c", type=float)
     parser.add_argument("--h", type=int)
 
@@ -25,8 +30,13 @@ def main():
     alpha_min = args.alpha_min
     alpha_max = args.alpha_max
 
-    while alpha_max / alpha_min > args.tol:
+    while True:
         alpha = math.sqrt(alpha_min * alpha_max)
+        alpha = round_mantissa(alpha, args.tol)
+
+        if alpha in [alpha_min, alpha_max]:
+            break
+
         param = (('h', args.h), ('alpha', alpha), ('seed_init', args.seed_init), ('ptr', args.ptr))
         data = exec_blocking(args.log_dir, args.cmd, param)
         if data['delta_kernel']['traink'] < args.c * data['delta_kernel']['init']['traink']['norm']:
