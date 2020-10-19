@@ -37,12 +37,16 @@ def main():
         if alpha in [alpha_min, alpha_max]:
             break
 
+        print("{} < {} < {}".format(alpha_min, alpha, alpha_max))
+
         param = (('h', args.h), ('alpha', alpha), ('seed_init', args.seed_init), ('ptr', args.ptr))
         data = exec_blocking(args.log_dir, args.cmd, param)
         if data['delta_kernel']['traink'] < args.c * data['delta_kernel']['init']['traink']['norm']:
             alpha_max = alpha
         else:
             alpha_min = alpha
+
+        print(data['delta_kernel']['traink'] / data['delta_kernel']['init']['traink']['norm'])
 
 
 if __name__ == "__main__":
