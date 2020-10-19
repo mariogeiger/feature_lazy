@@ -127,6 +127,14 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
         x = center_normalize(x)
         return intertwine_split(x, y, i, ps, seeds, y.unique())
 
+    if dataset == "pca_fashion":
+        tr = torchvision.datasets.FashionMNIST('~/.torchvision/datasets/FashionMNIST', train=True, download=True, transform=transform)
+        te = torchvision.datasets.FashionMNIST('~/.torchvision/datasets/FashionMNIST', train=False, transform=transform)
+        x, y, i = intertwine_labels(*dataset_to_tensors(list(tr) + list(te)))
+        x = center_normalize(x)
+        x = pca(x, d, whitening=False)
+        return intertwine_split(x, y, i, ps, seeds, y.unique())
+
     if dataset == "cifar10":
         tr = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform)
         te = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform)
