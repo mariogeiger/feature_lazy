@@ -353,10 +353,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 yield run
         del kernels
 
-    if args.delta_kernel == 1 or args.init_kernel == 1:
-        init_kernel = compute_kernels(f0, xtk, xte[:len(xtk)])
-
     if args.init_kernel == 1:
+        init_kernel = compute_kernels(f0, xtk, xte[:len(xtk)])
         for out in run_kernel('init_kernel', args, *init_kernel, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
             run['init_kernel'] = out
 
@@ -366,8 +364,11 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             run['init_kernel_ptr'] = out
         del init_kernel_ptr
 
-    if args.delta_kernel == 1:
-        init_kernel = (init_kernel[0].cpu(), init_kernel[2].cpu())
+    if args.delta_kernel == 1 and args.init_kernel == 1:
+        init_kernel = init_kernel[0].cpu()
+    elif args.delta_kernel == 1:
+        init_kernel, _, _ = compute_kernels(f0, xtk, xte[:1])
+        init_kernel = init_kernel.cpu()
     elif args.init_kernel == 1:
         del init_kernel
 
@@ -407,7 +408,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 yield run
         yield run
 
-        if args.delta_kernel == 1 or args.final_kernel == 1:
+        if args.final_kernel == 1:
             final_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
             if args.final_kernel_ptr == 1:
                 ktktk, ktetk, ktete = final_kernel
@@ -439,41 +440,31 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             del final_kernel_ptr
 
         if args.delta_kernel == 1:
-            final_kernel = (final_kernel[0].cpu(), final_kernel[2].cpu())
+            if args.final_kernel == 1:
+                final_kernel = final_kernel[0].cpu()
+            else:
+                final_kernel, _, _ = compute_kernels(f, xtk, xte[:1])
+                final_kernel = final_kernel.cpu()
+
             run['delta_kernel'] = {
-                'traink': (init_kernel[0] - final_kernel[0]).norm().item(),
-                'test': (init_kernel[1] - final_kernel[1]).norm().item(),
+                'traink': (init_kernel - final_kernel).norm().item(),
             }
             run['delta_kernel']['init'] = {
                 'traink': {
-                    'value': init_kernel[0].detach().cpu() if args.store_kernel == 1 else None,
-                    'diag': init_kernel[0].diag().detach().cpu(),
-                    'mean': init_kernel[0].mean().item(),
-                    'std': init_kernel[0].std().item(),
-                    'norm': init_kernel[0].norm().item(),
-                },
-                'test': {
-                    'value': init_kernel[1].detach().cpu() if args.store_kernel == 1 else None,
-                    'diag': init_kernel[1].diag().detach().cpu(),
-                    'mean': init_kernel[1].mean().item(),
-                    'std': init_kernel[1].std().item(),
-                    'norm': init_kernel[1].norm().item(),
+                    'value': init_kernel.detach().cpu() if args.store_kernel == 1 else None,
+                    'diag': init_kernel.diag().detach().cpu(),
+                    'mean': init_kernel.mean().item(),
+                    'std': init_kernel.std().item(),
+                    'norm': init_kernel.norm().item(),
                 },
             }
             run['delta_kernel']['final'] = {
                 'traink': {
-                    'value': final_kernel[0].detach().cpu() if args.store_kernel == 1 else None,
-                    'diag': final_kernel[0].diag().detach().cpu(),
-                    'mean': final_kernel[0].mean().item(),
-                    'std': final_kernel[0].std().item(),
-                    'norm': final_kernel[0].norm().item(),
-                },
-                'test': {
-                    'value': final_kernel[1].detach().cpu() if args.store_kernel == 1 else None,
-                    'diag': final_kernel[1].diag().detach().cpu(),
-                    'mean': final_kernel[1].mean().item(),
-                    'std': final_kernel[1].std().item(),
-                    'norm': final_kernel[1].norm().item(),
+                    'value': final_kernel.detach().cpu() if args.store_kernel == 1 else None,
+                    'diag': final_kernel.diag().detach().cpu(),
+                    'mean': final_kernel.mean().item(),
+                    'std': final_kernel.std().item(),
+                    'norm': final_kernel.norm().item(),
                 },
             }
 
