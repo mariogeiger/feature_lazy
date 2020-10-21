@@ -339,7 +339,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         'N': sum(p.numel() for p in f0.parameters()),
         'finished': False,
     }
-    wall = perf_counter()
+    wall = None
 
     if args.init_features_ptr == 1:
         parameters = [p for n, p in f0.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
@@ -348,7 +348,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
         for out in run_kernel('init_features_ptr', args, *kernels, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
             run['init_features_ptr'] = out
 
-            if perf_counter() - wall > 120:
+            if wall is None or perf_counter() - wall > 120:
                 wall = perf_counter()
                 yield run
         del kernels
@@ -403,7 +403,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 except StopIteration:
                     al = 0
 
-            if perf_counter() - wall > 120:
+            if wall is None or perf_counter() - wall > 120:
                 wall = perf_counter()
                 yield run
         yield run
