@@ -1,4 +1,4 @@
-# pylint: disable=missing-docstring, invalid-name
+# pylint: disable=missing-docstring, invalid-name, line-too-long
 import argparse
 
 from grid.exec import exec_blocking
@@ -13,19 +13,18 @@ def main():
     parser.add_argument("--alpha", type=float)
     parser.add_argument("--h", type=int)
 
-    parser.add_argument("--seed_init", type=int)
-    parser.add_argument("--ptr", type=int)
+    parser.add_argument("--seed_init", type=int, nargs='+')
 
     args = parser.parse_args()
 
     h = args.h
 
     while True:
-        param = (('h', h), ('alpha', args.alpha), ('seed_init', args.seed_init), ('ptr', args.ptr))
-        print("execute: {}".format(param))
-        data = exec_blocking(args.log_dir, args.cmd, param)
-        dyn = data['regular']['dynamics']
-        if dyn[-1]['train']['nd'] > 0:
+        rs = [
+            exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed)))
+            for seed in args.seed_init
+        ]
+        if all(r['regular']['dynamics'][-1]['train']['nd'] > 0 for r in rs):
             print('done!')
             break
         h -= 1
