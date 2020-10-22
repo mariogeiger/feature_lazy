@@ -20,12 +20,15 @@ def main():
     h = args.h
 
     while True:
-        rs = [
-            exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed)))
-            for seed in args.seed_init
-        ]
-        if all(r['regular']['dynamics'][-1]['train']['nd'] > 0 for r in rs):
-            print('done!')
+        jammed = True
+        for seed in args.seed_init:
+            r = exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed)))
+            if r['regular']['dynamics'][-1]['train']['nd'] == 0:
+                jammed = False
+                break
+
+        if jammed:
+            print('jammed!')
             break
         h -= 1
 
