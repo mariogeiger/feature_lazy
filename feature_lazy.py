@@ -32,8 +32,8 @@ def main():
     alpha_max = args.alpha_max
 
     runs = load(args.log_dir, pred_args=lambda a: a.h == args.h and a.seed_init == args.seed_init, pred_run=lambda r: r['finished'])
-    alpha_max = min(args.alpha_max, *[r['args'].alpha for r in runs if r['delta_kernel']['traink'] < args.c * r['delta_kernel']['init']['traink']['norm']])
-    alpha_min = max(args.alpha_min, *[r['args'].alpha for r in runs if r['delta_kernel']['traink'] > args.c * r['delta_kernel']['init']['traink']['norm']])
+    alpha_max = min([args.alpha_max] + [r['args'].alpha for r in runs if r['delta_kernel']['traink'] < args.c * r['delta_kernel']['init']['traink']['norm']])
+    alpha_min = max([args.alpha_min] + [r['args'].alpha for r in runs if r['delta_kernel']['traink'] > args.c * r['delta_kernel']['init']['traink']['norm']])
 
     while True:
         alpha = math.sqrt(alpha_min * alpha_max)
