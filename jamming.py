@@ -22,9 +22,11 @@ def main():
 
     while True:
         param = (('h', h), ('alpha', args.alpha), ('seed_init', args.seed_init), ('ptr', args.ptr))
+        print("execute: {}".format(param))
         data = exec_blocking(args.log_dir, args.cmd, param)
         dyn = data['regular']['dynamics']
         if dyn[-1]['train']['nd'] > 0:
+            print('done!')
             break
         h -= 1
 
