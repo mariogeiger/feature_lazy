@@ -1,6 +1,7 @@
 *.svg
 *.pkl
 *.zip
+*.pk
 *.ipynb
 *.pgf
 stderr
