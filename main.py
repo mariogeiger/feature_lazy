@@ -452,7 +452,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             run['delta_kernel']['init'] = {
                 'traink': {
                     'value': init_kernel.detach().cpu() if args.store_kernel == 1 else None,
-                    'diag': init_kernel.diag().detach().cpu(),
+                    'diag': init_kernel.diag().detach().cpu().clone(),
                     'mean': init_kernel.mean().item(),
                     'std': init_kernel.std().item(),
                     'norm': init_kernel.norm().item(),
@@ -461,7 +461,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             run['delta_kernel']['final'] = {
                 'traink': {
                     'value': final_kernel.detach().cpu() if args.store_kernel == 1 else None,
-                    'diag': final_kernel.diag().detach().cpu(),
+                    'diag': final_kernel.diag().detach().cpu().clone(),
                     'mean': final_kernel.mean().item(),
                     'std': final_kernel.std().item(),
                     'norm': final_kernel.norm().item(),
@@ -628,9 +628,9 @@ def execute(args):
     torch.manual_seed(0)
     for run in run_exp(args, f, xtr, ytr, xtk, ytk, xte, yte):
         run['dataset'] = {
-            'test': ite,
-            'kernel': itk,
-            'train': itr,
+            'test': ite.clone(),
+            'kernel': itk.clone(),
+            'train': itr.clone(),
         }
         yield run
 
