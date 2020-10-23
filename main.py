@@ -112,8 +112,8 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             'maxd': (args.alpha * otr * ytr).max().item(),
             'dfnorm': otr.pow(2).mean().sqrt().item(),
             'alpha_norm': internals['parameters'].norm().item(),
-            'outputs': otr.detach().cpu() if save_outputs else None,
-            'labels': ytr if save_outputs else None,
+            'outputs': otr.detach().cpu().clone() if save_outputs else None,
+            'labels': ytr.cpu() if save_outputs else None,
         }
 
         # if len(xte) > len(xtr):
@@ -131,8 +131,8 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             'mind': (args.alpha * ote * yte).min().item(),
             'maxd': (args.alpha * ote * yte).max().item(),
             'dfnorm': ote.pow(2).mean().sqrt().item(),
-            'outputs': ote.detach().cpu() if save_outputs else None,
-            'labels': yte if save_outputs else None,
+            'outputs': ote.detach().cpu().clone() if save_outputs else None,
+            'labels': yte.cpu() if save_outputs else None,
         }
 
         print(("[{prefix}] [i={d[step]:d} t={d[t]:.2e} wall={d[wall]:.0f}] [dt={d[dt]:.1e} dgrad={d[dgrad]:.1e} dout={d[dout]:.1e}]" + \
@@ -148,8 +148,8 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
         if stop:
             out['kernel'] = {
                 'train': {
-                    'value': ktrtr.detach().cpu() if args.store_kernel == 1 else None,
-                    'diag': ktrtr.diag().detach().cpu(),
+                    'value': ktrtr.detach().cpu().clone() if args.store_kernel == 1 else None,
+                    'diag': ktrtr.diag().detach().cpu().clone(),
                     'mean': ktrtr.mean().item(),
                     'std': ktrtr.std().item(),
                     'norm': ktrtr.norm().item(),
@@ -157,8 +157,8 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
                     'eigenvectors': eigenvectors(ktrtr, ytr),
                 },
                 'test': {
-                    'value': ktete.detach().cpu() if args.store_kernel == 1 else None,
-                    'diag': ktete.diag().detach().cpu(),
+                    'value': ktete.detach().cpu().clone() if args.store_kernel == 1 else None,
+                    'diag': ktete.diag().detach().cpu().clone(),
                     'mean': ktete.mean().item(),
                     'std': ktete.std().item(),
                     'norm': ktete.norm().item(),
@@ -290,10 +290,10 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'nd': (args.alpha * otr * ytr < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * otr * ytr).min().item(),
             'maxd': (args.alpha * otr * ytr).max().item(),
-            'dfnorm': otr.pow(2).mean().sqrt(),
-            'fnorm': (otr + otr0).pow(2).mean().sqrt(),
-            'outputs': otr if save_outputs else None,
-            'labels': ytr if save_outputs else None,
+            'dfnorm': otr.pow(2).mean().sqrt().item(),
+            'fnorm': (otr + otr0).pow(2).mean().sqrt().item(),
+            'outputs': otr.cpu().clone() if save_outputs else None,
+            'labels': ytr.cpu().clone() if save_outputs else None,
         }
         state['test'] = {
             'loss': loss_func(args, ote, yte).mean().item(),
@@ -302,10 +302,10 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
             'mind': (args.alpha * ote * yte).min().item(),
             'maxd': (args.alpha * ote * yte).max().item(),
-            'dfnorm': ote.pow(2).mean().sqrt(),
-            'fnorm': (ote + ote0).pow(2).mean().sqrt(),
-            'outputs': ote if save_outputs else None,
-            'labels': yte if save_outputs else None,
+            'dfnorm': ote.pow(2).mean().sqrt().item(),
+            'fnorm': (ote + ote0).pow(2).mean().sqrt().item(),
+            'outputs': ote.cpu().clone() if save_outputs else None,
+            'labels': yte.cpu().clone() if save_outputs else None,
         }
         print(
             (
@@ -628,9 +628,9 @@ def execute(args):
     torch.manual_seed(0)
     for run in run_exp(args, f, xtr, ytr, xtk, ytk, xte, yte):
         run['dataset'] = {
-            'test': ite.clone(),
-            'kernel': itk.clone(),
-            'train': itr.clone(),
+            'test': ite.cpu().clone(),
+            'kernel': itk.cpu().clone(),
+            'train': itr.cpu().clone(),
         }
         yield run
 
