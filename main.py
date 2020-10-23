@@ -3,13 +3,13 @@ import argparse
 import copy
 import math
 import os
+import pickle
 import subprocess
 from functools import partial
 from time import perf_counter
 
 import torch
 from gradientflow import gradientflow_backprop, gradientflow_kernel
-from grid import zip_save
 
 from arch import CV, FC, Conv1d, FixedAngles, FixedWeights, Wide_ResNet
 from arch.mnas import MnasNetLike, MNISTNet
@@ -741,12 +741,16 @@ def main():
     if args.seed_init == -1:
         args.seed_init = args.seed_trainset
 
-    zip_save(args.output, {'args': args})
+    with open(args.output, 'wb') as handle:
+        pickle.dump(args,  handle)
+
     saved = False
     try:
-        for res in execute(args):
-            res['git'] = git
-            zip_save(args.output, {'args': args, 'data': res})
+        for data in execute(args):
+            data['git'] = git
+            with open(args.output, 'wb') as handle:
+                pickle.dump(args, handle)
+                pickle.dump(data, handle)
             saved = True
     except:
         if not saved:
