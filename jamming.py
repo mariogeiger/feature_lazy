@@ -22,6 +22,7 @@ def main():
     while True:
         jammed = True
         for seed in args.seed_init:
+            print('try h={}, seed={}'.format(h, seed))
             r = exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed)))
             if r['regular']['dynamics'][-1]['train']['nd'] == 0:
                 jammed = False
