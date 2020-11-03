@@ -142,6 +142,14 @@ def get_normalized_dataset(dataset, ps, seeds, d=0, params=None):
         x = center_normalize(x)
         return intertwine_split(x, y, i, ps, seeds, y.unique())
 
+    if dataset == "pca_cifar10":
+        tr = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform)
+        te = torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform)
+        x, y, i = intertwine_labels(*dataset_to_tensors(list(tr) + list(te)))
+        x = center_normalize(x)
+        x = pca(x, d, whitening=False)
+        return intertwine_split(x, y, i, ps, seeds, y.unique())
+
     if dataset == "cifar_catdog":
         tr = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=True, download=True, transform=transform) if y in [3, 5]]
         te = [(x, y) for x, y in torchvision.datasets.CIFAR10('~/.torchvision/datasets/CIFAR10', train=False, transform=transform) if y in [3, 5]]
