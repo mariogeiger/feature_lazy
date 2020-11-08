@@ -29,7 +29,7 @@ def main():
             if any(r['regular']['dynamics'][-1]['train']['nd'] == 0 for r in rs):
                 jammed = False
                 break
-            r = exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed), ('wall', args.wall)))
+            r = exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed), ('max_wall', args.wall)))
             if r['regular']['dynamics'][-1]['train']['nd'] == 0:
                 jammed = False
                 break

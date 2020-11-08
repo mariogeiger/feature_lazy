@@ -23,6 +23,7 @@ def main():
 
     parser.add_argument("--alpha_min", type=float)
     parser.add_argument("--alpha_max", type=float)
+    parser.add_argument("--wall", type=float)
     parser.add_argument("--tol", type=int)
     parser.add_argument("--c", type=float)
     parser.add_argument("--h", type=int)
@@ -55,7 +56,7 @@ def main():
         print("{} < {} < {}".format(alpha_min, alpha, alpha_max))
 
         rs = [
-            exec_blocking(args.log_dir, args.cmd, (('h', args.h), ('alpha', alpha), ('seed_init', seed)))
+            exec_blocking(args.log_dir, args.cmd, (('h', args.h), ('alpha', alpha), ('seed_init', seed), ('max_wall', args.wall)))
             for seed in args.seed_init
         ]
         value = mean([get_value(r) for r in rs])
