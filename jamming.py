@@ -21,6 +21,10 @@ def main():
 
     h = args.h
 
+    rs = load(args.log_dir, pred_args=lambda a: a.alpha == args.alpha)
+    rs = [r for r in rs if r['regular']['dynamics'][-1]['train']['nd'] == 0]
+    h = min(h, min([r['args'].h for r in rs]))
+
     while True:
         jammed = True
         for seed in args.seed_init:
