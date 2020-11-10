@@ -22,22 +22,24 @@ def main():
     h = args.h
 
     rs = load(args.log_dir, pred_args=lambda a: a.alpha == args.alpha)
-    rs = [r for r in rs if r['regular']['dynamics'][-1]['train']['nd'] == 0]
+    rs = [r for r in rs if r['regular']['dynamics'][-1]['train']['nd'] == 0 and r['regular']['dynamics'][-1]['wall'] <= args.wall]
     if rs:
         h = min(h, min([r['args'].h for r in rs]))
 
     while True:
+        print('try h={}'.format(h))
+
         jammed = True
-        for seed in args.seed_init:
-            print('try h={}, seed={}'.format(h, seed))
-            rs = load(args.log_dir, pred_args=lambda a: a.h == h and a.alpha == args.alpha and a.seed_init == seed)
-            if any(r['regular']['dynamics'][-1]['train']['nd'] == 0 for r in rs):
-                jammed = False
-                break
-            r = exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed), ('max_wall', args.wall)))
-            if r['regular']['dynamics'][-1]['train']['nd'] == 0:
-                jammed = False
-                break
+
+        rs = load(args.log_dir, pred_args=lambda a: a.h == h and a.alpha == args.alpha and a.seed_init in args.seed_init)
+        if any(r['regular']['dynamics'][-1]['train']['nd'] == 0 and r['regular']['dynamics'][-1]['wall'] <= args.wall for r in rs):
+            jammed = False
+        else:
+            for seed in args.seed_init:
+                r = exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed), ('max_wall', args.wall)))
+                if r['regular']['dynamics'][-1]['train']['nd'] == 0:
+                    jammed = False
+                    break
 
         if jammed:
             print('jammed!')
