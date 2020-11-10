@@ -37,6 +37,9 @@ def main():
         else:
             for seed in args.seed_init:
                 r = exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed), ('max_wall', args.wall)))
+                if not r['finished']:
+                    print("Already running elsewhere", h, seed, args.alpha)
+                    return
                 if r['regular']['dynamics'][-1]['train']['nd'] == 0:
                     jammed = False
                     break
