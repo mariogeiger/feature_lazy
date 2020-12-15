@@ -166,6 +166,10 @@ plt.savefig('overfitting.pgf')
 
 ## code to plot the phase diagram
 ```python
+import matplotlib as mpl
+from grid import args_intersection
+from scipy.spatial import Voronoi
+
 fig, [ax1, ax2] = plt.subplots(1, 2, figsize=(6.4, 3), dpi=150)
 
 plt.sca(ax1)
