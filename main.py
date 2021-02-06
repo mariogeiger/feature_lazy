@@ -255,7 +255,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
         state['dnorm'] = sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item()
 
-        if state['grad_norm'] == 0:
+        if len(otr) == len(xtr) and state['grad_norm'] == 0:
             save = save_outputs = stop = True
 
         if len(otr) < len(xtr):
