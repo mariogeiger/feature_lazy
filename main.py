@@ -9,7 +9,7 @@ from functools import partial
 from time import perf_counter
 
 import torch
-from gradientflow import gradientflow_backprop, gradientflow_kernel
+from gradientflow import gradientflow_backprop, gradientflow_kernel, gradientflow_backprop_sgd
 
 from arch import CV, FC, Conv1d, FixedAngles, FixedWeights, Wide_ResNet
 from arch.mnas import MnasNetLike, MNISTNet
@@ -195,10 +195,33 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
     checkpoint = next(checkpoint_generator)
 
+    if args.temperature == 0.0:
+        gradientflow = partial(
+            gradientflow_backprop,
+            loss=partial(loss_func, args),
+            subf0=bool(args.f0),
+            tau=tau,
+            chunk=args.chunk,
+            batch=args.bs,
+            max_dgrad=args.max_dgrad,
+            max_dout=args.max_dout / args.alpha
+        )
+    else:
+        gradientflow = partial(
+            gradientflow_backprop_sgd,
+            loss_function=partial(loss_func, args),
+            subf0=bool(args.f0),
+            beta=1.0 / args.temperature,
+            chunk=args.chunk,
+            batch_min=args.batch_min,
+            batch_max=args.batch_max,
+            max_dgrad=args.max_dgrad,
+            max_dout=args.max_dout / args.alpha
+        )
+
     wall = perf_counter()
     dynamics = []
-    for state, internals in gradientflow_backprop(f0, xtr, ytr, partial(loss_func, args), bool(args.f0), tau,
-                                                  args.chunk, args.bs, args.max_dgrad, args.max_dout / args.alpha):
+    for state, internals in gradientflow(f0, xtr, ytr):
         save_outputs = args.save_outputs
         save = stop = False
         otr = internals['output']
@@ -221,8 +244,8 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 save = save_outputs = True
             if mind > args.stop_margin:
                 save = save_outputs = stop = True
-        if (args.ptr - (args.alpha * otr * ytr < args.stop_margin).long().sum().item()) / args.ptr > args.stop_frac:
-            save = save_outputs = stop = True
+            if (args.ptr - (args.alpha * otr * ytr < args.stop_margin).long().sum().item()) / args.ptr > args.stop_frac:
+                save = save_outputs = stop = True
 
         if not save:
             continue
@@ -642,7 +665,7 @@ def main():
     }
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--device", type=str, default='cuda')
+    parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--dtype", type=str, default='float64')
 
     parser.add_argument("--seed_init", type=int, default=0)
@@ -706,6 +729,10 @@ def main():
     parser.add_argument("--tau_over_h_kernel", type=float)
     parser.add_argument("--tau_alpha_crit", type=float)
 
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--batch_min", type=int, default=1)
+    parser.add_argument("--batch_max", type=int, default=None)
+
     parser.add_argument("--max_wall", type=float, required=True)
     parser.add_argument("--max_wall_kernel", type=float)
     parser.add_argument("--wall_max_early_stopping", type=float)
@@ -725,6 +752,12 @@ def main():
 
     parser.add_argument("--output", type=str, required=True)
     args = parser.parse_args()
+
+    if args.device is None:
+        if torch.cuda.is_available():
+            args.device = 'cude'
+        else:
+            args.device = 'cpu'
 
     if args.pte is None:
         args.pte = args.ptr
