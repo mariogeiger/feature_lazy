@@ -755,7 +755,7 @@ def main():
 
     if args.device is None:
         if torch.cuda.is_available():
-            args.device = 'cude'
+            args.device = 'cuda'
         else:
             args.device = 'cpu'
 
