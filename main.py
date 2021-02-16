@@ -216,7 +216,9 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             batch_min=args.batch_min,
             batch_max=args.batch_max,
             max_dgrad=args.max_dgrad,
-            max_dout=args.max_dout / args.alpha
+            max_dout=args.max_dout / args.alpha,
+            dt_amplification=args.dt_amp,
+            dt_damping=args.dt_dam,
         )
 
     wall = perf_counter()
@@ -732,6 +734,8 @@ def main():
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--batch_min", type=int, default=1)
     parser.add_argument("--batch_max", type=int, default=None)
+    parser.add_argument("--dt_amp", type=float, default=1.1)
+    parser.add_argument("--dt_dam", type=float, default=1.1**3)
 
     parser.add_argument("--max_wall", type=float, required=True)
     parser.add_argument("--max_wall_kernel", type=float)
