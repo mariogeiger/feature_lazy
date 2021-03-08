@@ -102,7 +102,9 @@ def run_sgd(f_init, xtr, ytr, xte, yte, **args):
         if state['step'] == checkpoint:
             checkpoint = next(checkpoint_generator)
             save = True
-        if torch.isnan(internals['oba']).any():
+        if not torch.isfinite(internals['oba']).all():
+            save = stop = True
+        if not torch.isfinite(internals['gradient']).all():
             save = stop = True
         if wall + args['max_wall'] < perf_counter():
             save = save_outputs = stop = True
