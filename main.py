@@ -11,9 +11,7 @@ from time import perf_counter
 import torch
 from gradientflow import gradientflow_backprop, gradientflow_kernel, gradientflow_backprop_sgd
 
-from arch import CV, FC, Conv1d, FixedAngles, FixedWeights, Wide_ResNet
-from arch.mnas import MnasNetLike, MNISTNet
-from arch.swish import swish
+from arch import init_arch
 from dataset import get_binary_dataset
 from kernels import compute_kernels, eigenvectors, kernel_intdim
 
@@ -42,16 +40,6 @@ def loss_func_prime(args, f, y):
         return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * f * y)) * y
     if args.loss == 'qhinge':
         return -(args.loss_margin - args.alpha * f * y).relu() * y
-
-
-class SplitEval(torch.nn.Module):
-    def __init__(self, f, size):
-        super().__init__()
-        self.f = f
-        self.size = size
-
-    def forward(self, x):
-        return torch.cat([self.f(x[i: i + self.size]) for i in range(0, len(x), self.size)])
 
 
 def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
@@ -586,63 +574,7 @@ def init(args):
         torch.get_default_dtype()
     )
 
-    torch.manual_seed(0)
-
-    if args.act == 'relu':
-        _act = torch.relu
-    elif args.act == 'tanh':
-        _act = torch.tanh
-    elif args.act == 'softplus':
-        _act = torch.nn.functional.softplus
-    elif args.act == 'swish':
-        _act = swish
-    else:
-        raise ValueError('act not specified')
-
-    def __act(x):
-        b = args.act_beta
-        return _act(b * x) / b
-    factor = __act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item()
-
-    def act(x):
-        return __act(x) * factor
-
-    _d = abs(act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item() - 1)
-    assert _d < 1e-2, _d
-
-    torch.manual_seed(args.seed_init + hash(args.alpha) + args.ptr)
-
-    if args.arch == 'fc':
-        assert args.L is not None
-        xtr = xtr.flatten(1)
-        xtk = xtk.flatten(1)
-        xte = xte.flatten(1)
-        f = FC(xtr.size(1), args.h, 1, args.L, act, args.bias, args.last_bias, args.var_bias)
-
-    elif args.arch == 'cv':
-        assert args.bias == 0
-        f = CV(xtr.size(1), args.h, L1=args.cv_L1, L2=args.cv_L2, act=act, h_base=args.cv_h_base,
-               fsz=args.cv_fsz, pad=args.cv_pad, stride_first=args.cv_stride_first)
-    elif args.arch == 'resnet':
-        assert args.bias == 0
-        f = Wide_ResNet(xtr.size(1), 28, args.h, act, 1, args.mix_angle)
-    elif args.arch == 'mnas':
-        assert args.act == 'swish'
-        f = MnasNetLike(xtr.size(1), args.h, 1, args.cv_L1, args.cv_L2, dim=xtr.dim() - 2)
-    elif args.arch == 'mnist':
-        assert args.dataset == 'mnist'
-        f = MNISTNet(xtr.size(1), args.h, 1, act)
-    elif args.arch == 'fixed_weights':
-        f = FixedWeights(args.d, args.h, act, args.bias)
-    elif args.arch == 'fixed_angles':
-        f = FixedAngles(args.d, args.h, act, args.bias)
-    elif args.arch == 'conv1d':
-        f = Conv1d(args.d, args.h, act, args.bias)
-    else:
-        raise ValueError('arch not specified')
-
-    f = SplitEval(f, args.chunk)
-    f = f.to(args.device)
+    f, (xtr, xtk, xte) = init_arch((xtr, xtk, xte), **args.__dict__)
 
     return f, xtr, ytr, itr, xtk, ytk, itk, xte, yte, ite
 

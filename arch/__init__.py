@@ -1,255 +1,74 @@
-# pylint: disable=E1101, C, arguments-differ
-"""
-Defines three architectures:
-- Fully connecetd `FC`
-- Convolutional `CV`
-- And a resnet `Wide_ResNet`
-"""
-import functools
-import math
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from .basics import *  # noqa
+from .mnas import *  # noqa
 
 
-class FC(nn.Module):
-    def __init__(self, d, h, c, L, act, bias=False, last_bias=False, var_bias=0):
+class _SplitEval(torch.nn.Module):
+    def __init__(self, f, size):
         super().__init__()
-
-        hh = d
-        for i in range(L):
-            W = torch.randn(h, hh)
-
-            # next two line are here to avoid memory issue when computing the kernel
-            n = max(1, 128 * 256 // hh)
-            W = nn.ParameterList([nn.Parameter(W[j: j + n]) for j in range(0, len(W), n)])
-
-            setattr(self, "W{}".format(i), W)
-            if bias:
-                self.register_parameter("B{}".format(i), nn.Parameter(torch.randn(h).mul(var_bias**0.5)))
-            hh = h
-
-        self.register_parameter("W{}".format(L), nn.Parameter(torch.randn(c, hh)))
-        if last_bias:
-            self.register_parameter("B{}".format(L), nn.Parameter(torch.randn(c).mul(var_bias**0.5)))
-
-        self.L = L
-        self.act = act
-        self.bias = bias
-        self.last_bias = last_bias
+        self.f = f
+        self.size = size
 
     def forward(self, x):
-        for i in range(self.L + 1):
-            W = getattr(self, "W{}".format(i))
-
-            if isinstance(W, nn.ParameterList):
-                W = torch.cat(list(W))
-
-            if self.bias and i < self.L:
-                B = self.bias * getattr(self, "B{}".format(i))
-            elif self.last_bias and i == self.L:
-                B = self.last_bias * getattr(self, "B{}".format(i))
-            else:
-                B = 0
-
-            h = x.size(1)
-
-            if i < self.L:
-                x = x @ (W.t() / h ** 0.5)
-                x = self.act(x + B)
-            else:
-                x = x @ (W.t() / h) + B
-
-        if x.shape[1] == 1:
-            return x.view(-1)
-        return x
+        return torch.cat([self.f(x[i: i + self.size]) for i in range(0, len(x), self.size)])
 
 
-class FixedWeights(nn.Module):
-    def __init__(self, d, h, act, bias):
-        super().__init__()
+def init_arch(datasets, **args):
+    torch.manual_seed(0)
 
-        self.register_buffer("W0", torch.randn(h, d))
-        self.B = nn.Parameter(torch.zeros(h))
-        self.W = nn.Parameter(torch.randn(h))
+    assert datasets[0].shape[0] == args['ptr']
 
-        self.act = act
-        self.bias = bias
+    if args['act'] == 'relu':
+        _act = torch.relu
+    elif args['act'] == 'tanh':
+        _act = torch.tanh
+    elif args['act'] == 'softplus':
+        _act = torch.nn.functional.softplus
+    elif args['act'] == 'swish':
+        _act = torch.nn.functional.silu
+    else:
+        raise ValueError('act not specified')
 
-    def forward(self, x):
-        d = x.size(1)
-        B = self.bias * self.B
-        h = len(B)
-        return self.act(x @ (self.W0.T / d**0.5) + B) @ (self.W / h)
+    def __act(x):
+        b = args['act_beta']
+        return _act(b * x) / b
+    factor = __act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item()
 
+    def act(x):
+        return __act(x) * factor
 
-class FixedAngles(nn.Module):
-    def __init__(self, d, h, act, bias):
-        super().__init__()
+    _d = abs(act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item() - 1)
+    assert _d < 1e-2, _d
 
-        W0 = torch.randn(h, d)
-        r = W0.norm(dim=1, keepdim=True)
-        self.r = nn.Parameter(r)
-        self.register_buffer("W0", W0 / r)
-        self.B = nn.Parameter(torch.zeros(h))
-        self.W = nn.Parameter(torch.randn(h))
+    torch.manual_seed(args['seed_init'] + hash(args['alpha']) + args['ptr'])
 
-        self.act = act
-        self.bias = bias
+    if args['arch'] == 'fc':
+        assert args['L'] is not None
+        datasets = [x.flatten(1) for x in datasets]
+        f = FC(datasets[0].size(1), args['h'], 1, args['L'], act, args['bias'], args['last_bias'], args['var_bias'])
 
-    def forward(self, x):
-        d = x.size(1)
-        B = self.bias * self.B
-        h = len(B)
-        return self.act(x @ ((self.r * self.W0).T / d**0.5) + B) @ (self.W / h)
+    elif args['arch'] == 'cv':
+        assert args['bias'] == 0
+        f = CV(datasets[0].size(1), args['h'], L1=args['cv_L1'], L2=args['cv_L2'], act=act, h_base=args['cv_h_base'],
+               fsz=args['cv_fsz'], pad=args['cv_pad'], stride_first=args['cv_stride_first'])
+    elif args['arch'] == 'resnet':
+        assert args['bias'] == 0
+        f = Wide_ResNet(datasets[0].size(1), 28, args['h'], act, 1, args['mix_angle'])
+    elif args['arch'] == 'mnas':
+        assert args['act'] == 'swish'
+        f = MnasNetLike(datasets[0].size(1), args['h'], 1, args['cv_L1'], args['cv_L2'], dim=datasets[0].dim() - 2)
+    elif args['arch'] == 'mnist':
+        assert args['dataset'] == 'mnist'
+        f = MNISTNet(datasets[0].size(1), args['h'], 1, act)
+    elif args['arch'] == 'fixed_weights':
+        f = FixedWeights(args['d'], args['h'], act, args['bias'])
+    elif args['arch'] == 'fixed_angles':
+        f = FixedAngles(args['d'], args['h'], act, args['bias'])
+    elif args['arch'] == 'conv1d':
+        f = Conv1d(args['d'], args['h'], act, args['bias'])
+    else:
+        raise ValueError('arch not specified')
 
+    f = _SplitEval(f, args['chunk'])
+    f = f.to(args['device'])
 
-class Conv1d(nn.Module):
-    def __init__(self, d, h, act, bias):
-        super().__init__()
-
-        self.W = nn.Parameter(torch.randn(h, 1, d))
-        self.B = nn.Parameter(torch.randn(h))
-        self.C = nn.Parameter(torch.randn(h))
-
-        self.act = act
-        self.bias = bias
-
-    def forward(self, x):
-        d = x.size(1)
-        B = self.bias * self.B
-        h = len(B)
-        x = torch.cat((x, x[:, :-1]), dim=1)
-        x = x.reshape(x.size(0), 1, d + d - 1)
-        return (self.act(F.conv1d(x, self.W / d**0.5, B)).sum(dim=2) / d) @ (self.C / h)
-
-
-class CV(nn.Module):
-    def __init__(self, d, h, L1, L2, act, h_base, fsz, pad, stride_first):
-        super().__init__()
-
-        h1 = d
-        for i in range(L1):
-            h2 = round(h * h_base ** i)
-            for j in range(L2):
-                W = nn.ParameterList([nn.Parameter(torch.randn(h1, fsz, fsz)) for _ in range(h2)])
-                setattr(self, "W{}_{}".format(i, j), W)
-                h1 = h2
-
-        self.W = nn.Parameter(torch.randn(h1))
-
-        self.L1 = L1
-        self.L2 = L2
-        self.act = act
-        self.pad = pad
-        self.stride_first = stride_first
-
-    def forward(self, x):
-        for i in range(self.L1):
-            for j in range(self.L2):
-                assert x.size(2) >= 5 and x.size(3) >= 5
-                W = getattr(self, "W{}_{}".format(i, j))
-                W = torch.stack(list(W))
-
-                stride = 2 if j == 0 and (i > 0 or self.stride_first) else 1
-                h = W[0].numel()
-                x = nn.functional.conv2d(x, W / h ** 0.5, None, stride=stride, padding=self.pad)
-                x = self.act(x)
-
-        x = x.flatten(2).mean(2)
-
-        W = self.W
-        h = len(W)
-        x = x @ (W / h)
-        return x.view(-1)
-
-
-class conv(nn.Module):
-    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, bias=True):
-        super().__init__()
-
-        w = torch.randn(out_planes, in_planes, kernel_size, kernel_size)
-        n = max(1, 256**2 // w[0].numel())
-        self.w = nn.ParameterList([nn.Parameter(w[j: j + n]) for j in range(0, len(w), n)])
-
-        self.b = nn.Parameter(torch.zeros(out_planes)) if bias else None
-
-        self.stride = stride
-        self.padding = padding
-
-    def forward(self, x):
-        w = torch.cat(list(self.w))
-        h = w[0].numel()
-        return F.conv2d(x, w / h ** 0.5, self.b, self.stride, self.padding)
-
-
-class wide_basic(nn.Module):
-    def __init__(self, in_planes, planes, act, stride=1, mix_angle=45):
-        super().__init__()
-        self.conv1 = conv(in_planes, planes, kernel_size=3, padding=1, bias=True)
-        self.conv2 = conv(planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
-
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_planes != planes:
-            self.shortcut = conv(in_planes, planes, kernel_size=1, stride=stride, bias=True)
-
-        self.act = act
-        self.mix_angle = mix_angle
-
-    def forward(self, x):
-        out = self.conv1(self.act(x))
-        out = self.conv2(self.act(out))
-        cut = self.shortcut(x)
-
-        a = self.mix_angle * math.pi / 180
-        out = math.cos(a) * cut + math.sin(a) * out
-
-        return out
-
-
-class Wide_ResNet(nn.Module):
-    def __init__(self, d, depth, h, act, num_classes, mix_angle=45):
-        super().__init__()
-
-        assert (depth % 6 == 4), 'Wide-resnet depth should be 6n+4'
-        n = (depth - 4) // 6
-
-        nStages = [16, 16 * h, 32 * h, 64 * h]
-        block = functools.partial(wide_basic, act=act, mix_angle=mix_angle)
-
-        self.conv1 = conv(d, nStages[0], kernel_size=3, stride=1, padding=1, bias=True)
-        self.in_planes = nStages[0]
-
-        self.layer1 = self._wide_layer(block, nStages[1], n, stride=1)
-        self.layer2 = self._wide_layer(block, nStages[2], n, stride=2)
-        self.layer3 = self._wide_layer(block, nStages[3], n, stride=2)
-        self.linear = nn.Parameter(torch.randn(num_classes, nStages[3]))
-        self.bias = nn.Parameter(torch.zeros(num_classes))
-        self.act = act
-
-    def _wide_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1] * (num_blocks - 1)
-        layers = []
-
-        for stride in strides:
-            layers.append(block(self.in_planes, planes, stride=stride))
-            self.in_planes = planes
-
-        return nn.Sequential(*layers)
-
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.act(out)
-        out = out.flatten(2).mean(2)
-
-        h = self.linear.size(1)
-        out = F.linear(out, self.linear / h, self.bias)
-
-        if out.size(1) == 1:
-            out = out.flatten(0)
-
-        return out
+    return f, datasets
