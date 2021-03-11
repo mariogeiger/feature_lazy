@@ -24,26 +24,26 @@ def loglinspace(step, tau, end=None):
 
 
 def loss_func(args, f, y):
-    if args.loss == 'hinge':
-        return (args.loss_margin - args.alpha * f * y).relu() / args.alpha
-    if args.loss == 'softhinge':
-        sp = partial(torch.nn.functional.softplus, beta=args.loss_beta)
-        return sp(args.loss_margin - args.alpha * f * y) / args.alpha
-    if args.loss == 'qhinge':
-        return 0.5 * (args.loss_margin - args.alpha * f * y).relu().pow(2) / args.alpha
+    if args['loss'] == 'hinge':
+        return (args['loss_margin'] - args['alpha'] * f * y).relu() / args['alpha']
+    if args['loss'] == 'softhinge':
+        sp = partial(torch.nn.functional.softplus, beta=args['loss_beta'])
+        return sp(args['loss_margin'] - args['alpha'] * f * y) / args['alpha']
+    if args['loss'] == 'qhinge':
+        return 0.5 * (args['loss_margin'] - args['alpha'] * f * y).relu().pow(2) / args['alpha']
 
 
 def loss_func_prime(args, f, y):
-    if args.loss == 'hinge':
-        return -((args.loss_margin - args.alpha * f * y) > 0).double() * y
-    if args.loss == 'softhinge':
-        return -torch.sigmoid(args.loss_beta * (args.loss_margin - args.alpha * f * y)) * y
-    if args.loss == 'qhinge':
-        return -(args.loss_margin - args.alpha * f * y).relu() * y
+    if args['loss'] == 'hinge':
+        return -((args['loss_margin'] - args['alpha'] * f * y) > 0).double() * y
+    if args['loss'] == 'softhinge':
+        return -torch.sigmoid(args['loss_beta'] * (args['loss_margin'] - args['alpha'] * f * y)) * y
+    if args['loss'] == 'qhinge':
+        return -(args['loss_margin'] - args['alpha'] * f * y).relu() * y
 
 
 def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
-    assert args.f0 == 1
+    assert args['f0'] == 1
 
     assert ktrtr.shape == (len(xtr), len(xtr))
     assert ktetr.shape == (len(xte), len(xtr))
@@ -51,19 +51,19 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
     assert len(yte) == len(xte)
     assert len(ytr) == len(xtr)
 
-    tau = args.tau_over_h_kernel * args.h
-    if args.tau_alpha_crit is not None:
-        tau *= min(1, args.tau_alpha_crit / args.alpha)
+    tau = args['tau_over_h_kernel'] * args['h']
+    if args['tau_alpha_crit'] is not None:
+        tau *= min(1, args['tau_alpha_crit'] / args['alpha'])
 
     margin = 0
 
-    checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
+    checkpoint_generator = loglinspace(args['ckpt_step'], args['ckpt_tau'])
     checkpoint = next(checkpoint_generator)
 
     wall = perf_counter()
     dynamics = []
-    for state, internals in gradientflow_kernel(ktrtr, ytr, tau, partial(loss_func_prime, args), args.max_dgrad, args.max_dout / args.alpha):
-        save_outputs = args.save_outputs
+    for state, internals in gradientflow_kernel(ktrtr, ytr, tau, partial(loss_func_prime, args), args['max_dgrad'], args['max_dout'] / args['alpha']):
+        save_outputs = args['save_outputs']
         save = stop = False
 
         otr = internals['output']
@@ -74,15 +74,15 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             save = True
         if torch.isnan(otr).any():
             save = stop = True
-        if wall + args.max_wall_kernel < perf_counter():
+        if wall + args['max_wall_kernel'] < perf_counter():
             save = save_outputs = stop = True
-        mind = (args.alpha * otr * ytr).min().item()
+        mind = (args['alpha'] * otr * ytr).min().item()
         if mind > margin:
             margin += 0.5
             save = save_outputs = True
-        if mind > args.stop_margin:
+        if mind > args['stop_margin']:
             save = save_outputs = stop = True
-        if args.train_kernel == 0:
+        if args['train_kernel'] == 0:
             save = save_outputs = stop = True
 
         if not save:
@@ -93,11 +93,11 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
 
         state['train'] = {
             'loss': loss_func(args, otr, ytr).mean().item(),
-            'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
+            'aloss': args['alpha'] * loss_func(args, otr, ytr).mean().item(),
             'err': (otr * ytr <= 0).double().mean().item(),
-            'nd': (args.alpha * otr * ytr < args.stop_margin).long().sum().item(),
-            'mind': (args.alpha * otr * ytr).min().item(),
-            'maxd': (args.alpha * otr * ytr).max().item(),
+            'nd': (args['alpha'] * otr * ytr < args['stop_margin']).long().sum().item(),
+            'mind': (args['alpha'] * otr * ytr).min().item(),
+            'maxd': (args['alpha'] * otr * ytr).max().item(),
             'dfnorm': otr.pow(2).mean().sqrt().item(),
             'alpha_norm': internals['parameters'].norm().item(),
             'outputs': otr.detach().cpu().clone() if save_outputs else None,
@@ -113,11 +113,11 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
 
         state['test'] = {
             'loss': loss_func(args, ote, yte).mean().item(),
-            'aloss': args.alpha * loss_func(args, ote, yte).mean().item(),
+            'aloss': args['alpha'] * loss_func(args, ote, yte).mean().item(),
             'err': (ote * yte <= 0).double().mean().item(),
-            'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
-            'mind': (args.alpha * ote * yte).min().item(),
-            'maxd': (args.alpha * ote * yte).max().item(),
+            'nd': (args['alpha'] * ote * yte < args['stop_margin']).long().sum().item(),
+            'mind': (args['alpha'] * ote * yte).min().item(),
+            'maxd': (args['alpha'] * ote * yte).max().item(),
             'dfnorm': ote.pow(2).mean().sqrt().item(),
             'outputs': ote.detach().cpu().clone() if save_outputs else None,
             'labels': yte.cpu() if save_outputs else None,
@@ -136,7 +136,7 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
         if stop:
             out['kernel'] = {
                 'train': {
-                    'value': ktrtr.detach().cpu().clone() if args.store_kernel == 1 else None,
+                    'value': ktrtr.detach().cpu().clone() if args['store_kernel'] == 1 else None,
                     'diag': ktrtr.diag().detach().cpu().clone(),
                     'mean': ktrtr.mean().item(),
                     'std': ktrtr.std().item(),
@@ -145,7 +145,7 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
                     'eigenvectors': eigenvectors(ktrtr, ytr),
                 },
                 'test': {
-                    'value': ktete.detach().cpu().clone() if args.store_kernel == 1 else None,
+                    'value': ktete.detach().cpu().clone() if args['store_kernel'] == 1 else None,
                     'diag': ktete.diag().detach().cpu().clone(),
                     'mean': ktete.mean().item(),
                     'std': ktete.std().item(),
@@ -166,13 +166,13 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         ote0 = f0(xte)
         otr0 = f0(xtr)
 
-    if args.f0 == 0:
+    if args['f0'] == 0:
         ote0 = torch.zeros_like(ote0)
         otr0 = torch.zeros_like(otr0)
 
-    tau = args.tau_over_h * args.h
-    if args.tau_alpha_crit is not None:
-        tau *= min(1, args.tau_alpha_crit / args.alpha)
+    tau = args['tau_over_h'] * args['h']
+    if args['tau_alpha_crit'] is not None:
+        tau *= min(1, args['tau_alpha_crit'] / args['alpha'])
 
     best_test_error = 1
     wall_best_test_error = perf_counter()
@@ -180,39 +180,39 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
     margin = 0
     n_changed_dt = 0
 
-    checkpoint_generator = loglinspace(args.ckpt_step, args.ckpt_tau)
+    checkpoint_generator = loglinspace(args['ckpt_step'], args['ckpt_tau'])
     checkpoint = next(checkpoint_generator)
 
-    if args.temperature == 0.0:
+    if args['temperature'] == 0.0:
         gradientflow = partial(
             gradientflow_backprop,
             loss=partial(loss_func, args),
-            subf0=bool(args.f0),
+            subf0=bool(args['f0']),
             tau=tau,
-            chunk=args.chunk,
-            batch=args.bs,
-            max_dgrad=args.max_dgrad,
-            max_dout=args.max_dout / args.alpha
+            chunk=args['chunk'],
+            batch=args['bs'],
+            max_dgrad=args['max_dgrad'],
+            max_dout=args['max_dout'] / args['alpha']
         )
     else:
         gradientflow = partial(
             gradientflow_backprop_sgd,
             loss_function=partial(loss_func, args),
-            subf0=bool(args.f0),
-            beta=1.0 / args.temperature,
-            chunk=args.chunk,
-            batch_min=args.batch_min,
-            batch_max=args.batch_max,
-            max_dgrad=args.max_dgrad,
-            max_dout=args.max_dout / args.alpha,
-            dt_amplification=args.dt_amp,
-            dt_damping=args.dt_dam,
+            subf0=bool(args['f0']),
+            beta=1.0 / args['temperature'],
+            chunk=args['chunk'],
+            batch_min=args['batch_min'],
+            batch_max=args['batch_max'],
+            max_dgrad=args['max_dgrad'],
+            max_dout=args['max_dout'] / args['alpha'],
+            dt_amplification=args['dt_amp'],
+            dt_damping=args['dt_dam'],
         )
 
     wall = perf_counter()
     dynamics = []
     for state, internals in gradientflow(f0, xtr, ytr):
-        save_outputs = args.save_outputs
+        save_outputs = args['save_outputs']
         save = stop = False
         otr = internals['output']
         f = internals['f']
@@ -223,18 +223,18 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             save = True
         if torch.isnan(otr).any():
             save = stop = True
-        if wall + args.max_wall < perf_counter():
+        if wall + args['max_wall'] < perf_counter():
             save = save_outputs = stop = True
-        if args.wall_max_early_stopping is not None and wall_best_test_error + args.wall_max_early_stopping < perf_counter():
+        if args['wall_max_early_stopping'] is not None and wall_best_test_error + args['wall_max_early_stopping'] < perf_counter():
             save = save_outputs = stop = True
         if len(otr) == len(xtr):
-            mind = (args.alpha * otr * ytr).min().item()
+            mind = (args['alpha'] * otr * ytr).min().item()
             if mind > margin:
                 margin += 0.5
                 save = save_outputs = True
-            if mind > args.stop_margin:
+            if mind > args['stop_margin']:
                 save = save_outputs = stop = True
-            if (args.ptr - (args.alpha * otr * ytr < args.stop_margin).long().sum().item()) / args.ptr > args.stop_frac:
+            if (args['ptr'] - (args['alpha'] * otr * ytr < args['stop_margin']).long().sum().item()) / args['ptr'] > args['stop_frac']:
                 save = save_outputs = stop = True
 
         if not save:
@@ -252,11 +252,11 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             with torch.no_grad():
                 otr = f(xtr) - otr0
 
-            mind = (args.alpha * otr * ytr).min().item()
+            mind = (args['alpha'] * otr * ytr).min().item()
             if mind > margin:
                 margin += 0.5
                 save = save_outputs = True
-            if mind > args.stop_margin:
+            if mind > args['stop_margin']:
                 save = save_outputs = stop = True
 
         with torch.no_grad():
@@ -276,33 +276,33 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
                 tmp_outputs_index = len(dynamics)
                 save_outputs = True
 
-        if args.arch == 'fc':
+        if args['arch'] == 'fc':
             def getw(f, i):
                 return torch.cat(list(getattr(f.f, "W{}".format(i))))
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
             state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
-            if args.save_weights:
-                assert args.L == 1
+            if args['save_weights']:
+                assert args['L'] == 1
                 W = [getw(f, i) for i in range(2)]
                 W0 = [getw(f0, i) for i in range(2)]
-                state['w'] = [W[0][:, j].pow(2).mean().sqrt().item() for j in range(args.d)]
-                state['dw'] = [(W[0][:, j] - W0[0][:, j]).pow(2).mean().sqrt().item() for j in range(args.d)]
+                state['w'] = [W[0][:, j].pow(2).mean().sqrt().item() for j in range(args['d'])]
+                state['dw'] = [(W[0][:, j] - W0[0][:, j]).pow(2).mean().sqrt().item() for j in range(args['d'])]
                 state['beta'] = W[1].pow(2).mean().sqrt().item()
                 state['dbeta'] = (W[1] - W0[1]).pow(2).mean().sqrt().item()
-                if args.bias:
+                if args['bias']:
                     B = getattr(f.f, "B0")
                     B0 = getattr(f0.f, "B0")
                     state['b'] = B.pow(2).mean().sqrt().item()
                     state['db'] = (B - B0).pow(2).mean().sqrt().item()
 
-        state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args.save_state == 1) else None
+        state['state'] = copy.deepcopy(f.state_dict()) if save_outputs and (args['save_state'] == 1) else None
         state['train'] = {
             'loss': loss_func(args, otr, ytr).mean().item(),
-            'aloss': args.alpha * loss_func(args, otr, ytr).mean().item(),
+            'aloss': args['alpha'] * loss_func(args, otr, ytr).mean().item(),
             'err': (otr * ytr <= 0).double().mean().item(),
-            'nd': (args.alpha * otr * ytr < args.stop_margin).long().sum().item(),
-            'mind': (args.alpha * otr * ytr).min().item(),
-            'maxd': (args.alpha * otr * ytr).max().item(),
+            'nd': (args['alpha'] * otr * ytr < args['stop_margin']).long().sum().item(),
+            'mind': (args['alpha'] * otr * ytr).min().item(),
+            'maxd': (args['alpha'] * otr * ytr).max().item(),
             'dfnorm': otr.pow(2).mean().sqrt().item(),
             'fnorm': (otr + otr0).pow(2).mean().sqrt().item(),
             'outputs': otr.cpu().clone() if save_outputs else None,
@@ -310,11 +310,11 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         }
         state['test'] = {
             'loss': loss_func(args, ote, yte).mean().item(),
-            'aloss': args.alpha * loss_func(args, ote, yte).mean().item(),
+            'aloss': args['alpha'] * loss_func(args, ote, yte).mean().item(),
             'err': test_err,
-            'nd': (args.alpha * ote * yte < args.stop_margin).long().sum().item(),
-            'mind': (args.alpha * ote * yte).min().item(),
-            'maxd': (args.alpha * ote * yte).max().item(),
+            'nd': (args['alpha'] * ote * yte < args['stop_margin']).long().sum().item(),
+            'mind': (args['alpha'] * ote * yte).min().item(),
+            'maxd': (args['alpha'] * ote * yte).max().item(),
             'dfnorm': ote.pow(2).mean().sqrt().item(),
             'fnorm': (ote + ote0).pow(2).mean().sqrt().item(),
             'outputs': ote.cpu().clone() if save_outputs else None,
@@ -338,7 +338,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             'dynamics': dynamics,
         }
 
-        if (args.ptr - state["train"]["nd"]) / args.ptr > args.stop_frac:
+        if (args['ptr'] - state["train"]["nd"]) / args['ptr'] > args['stop_frac']:
             stop = True
 
         yield f, out
@@ -354,8 +354,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
     }
     wall = None
 
-    if args.init_features_ptr == 1:
-        parameters = [p for n, p in f0.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
+    if args['init_features_ptr'] == 1:
+        parameters = [p for n, p in f0.named_parameters() if 'W{}'.format(args['L']) in n or 'classifier' in n]
         assert parameters
         kernels = compute_kernels(f0, xtr, xte[:len(xtk)], parameters)
         for out in run_kernel('init_features_ptr', args, *kernels, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
@@ -366,42 +366,42 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 yield run
         del kernels
 
-    if args.init_kernel == 1:
+    if args['init_kernel'] == 1:
         init_kernel = compute_kernels(f0, xtk, xte[:len(xtk)])
         for out in run_kernel('init_kernel', args, *init_kernel, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
             run['init_kernel'] = out
 
-    if args.init_kernel_ptr == 1:
+    if args['init_kernel_ptr'] == 1:
         init_kernel_ptr = compute_kernels(f0, xtr, xte[:len(xtk)])
         for out in run_kernel('init_kernel_ptr', args, *init_kernel_ptr, xtr, ytr, xte[:len(xtk)], yte[:len(xtk)]):
             run['init_kernel_ptr'] = out
         del init_kernel_ptr
 
-    if args.delta_kernel == 1 and args.init_kernel == 1:
+    if args['delta_kernel'] == 1 and args['init_kernel'] == 1:
         init_kernel = init_kernel[0].cpu()
-    elif args.delta_kernel == 1:
+    elif args['delta_kernel'] == 1:
         init_kernel, _, _ = compute_kernels(f0, xtk, xte[:1])
         init_kernel = init_kernel.cpu()
-    elif args.init_kernel == 1:
+    elif args['init_kernel'] == 1:
         del init_kernel
 
-    if args.regular == 1:
-        if args.running_kernel:
-            it = iter(args.running_kernel)
+    if args['regular'] == 1:
+        if args['running_kernel']:
+            it = iter(args['running_kernel'])
             al = next(it)
         else:
             al = -1
         for f, out in run_regular(args, f0, xtr, ytr, xte, yte):
             run['regular'] = out
             if out['dynamics'][-1]['train']['aloss'] < al * out['dynamics'][0]['train']['aloss']:
-                if args.init_kernel_ptr == 1:
+                if args['init_kernel_ptr'] == 1:
                     assert len(xtk) >= len(xtr)
                     running_kernel = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
                     for kout in run_kernel('kernel_ptr {}'.format(al), args, *running_kernel, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                         out['dynamics'][-1]['kernel_ptr'] = kout
                     del running_kernel
-                if args.init_features_ptr == 1:
-                    parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
+                if args['init_features_ptr'] == 1:
+                    parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args['L']) in n or 'classifier' in n]
                     assert parameters
                     assert len(xtk) >= len(xtr)
                     running_kernel = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
@@ -421,28 +421,28 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                 yield run
         yield run
 
-        if args.final_kernel == 1:
+        if args['final_kernel'] == 1:
             final_kernel = compute_kernels(f, xtk, xte[:len(xtk)])
-            if args.final_kernel_ptr == 1:
+            if args['final_kernel_ptr'] == 1:
                 ktktk, ktetk, ktete = final_kernel
                 ktktk = ktktk[:len(xtr)][:, :len(xtr)]
                 ktetk = ktetk[:, :len(xtr)]
                 final_kernel_ptr = (ktktk, ktetk, ktete)
 
-        elif args.final_kernel_ptr == 1:
+        elif args['final_kernel_ptr'] == 1:
             final_kernel_ptr = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)])
 
-        if args.final_kernel == 1:
+        if args['final_kernel'] == 1:
             for out in run_kernel('final_kernel', args, *final_kernel, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_kernel'] = out
 
                 if perf_counter() - wall > 120:
                     wall = perf_counter()
                     yield run
-            if args.delta_kernel == 0:
+            if args['delta_kernel'] == 0:
                 del final_kernel
 
-        if args.final_kernel_ptr == 1:
+        if args['final_kernel_ptr'] == 1:
             assert len(xtk) >= len(xtr)
             for out in run_kernel('final_kernel_ptr', args, *final_kernel_ptr, xtk[:len(xtr)], ytk[:len(xtr)], xte[:len(xtk)], yte[:len(xtk)]):
                 run['final_kernel_ptr'] = out
@@ -452,8 +452,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     yield run
             del final_kernel_ptr
 
-        if args.delta_kernel == 1:
-            if args.final_kernel == 1:
+        if args['delta_kernel'] == 1:
+            if args['final_kernel'] == 1:
                 final_kernel = final_kernel[0].cpu()
             else:
                 final_kernel, _, _ = compute_kernels(f, xtk, xte[:1])
@@ -464,7 +464,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             }
             run['delta_kernel']['init'] = {
                 'traink': {
-                    'value': init_kernel.detach().cpu() if args.store_kernel == 1 else None,
+                    'value': init_kernel.detach().cpu() if args['store_kernel'] == 1 else None,
                     'diag': init_kernel.diag().detach().cpu().clone(),
                     'mean': init_kernel.mean().item(),
                     'std': init_kernel.std().item(),
@@ -473,7 +473,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
             }
             run['delta_kernel']['final'] = {
                 'traink': {
-                    'value': final_kernel.detach().cpu() if args.store_kernel == 1 else None,
+                    'value': final_kernel.detach().cpu() if args['store_kernel'] == 1 else None,
                     'diag': final_kernel.diag().detach().cpu().clone(),
                     'mean': final_kernel.mean().item(),
                     'std': final_kernel.std().item(),
@@ -483,10 +483,10 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
             del init_kernel, final_kernel
 
-        if args.stretch_kernel == 1:
-            assert args.save_weights
+        if args['stretch_kernel'] == 1:
+            assert args['save_weights']
             lam = [x["w"][0] / torch.tensor(x["w"][1:]).float().mean() for x in run['regular']["dynamics"]]
-            frac = [(args.ptr - x["train"]["nd"]) / args.ptr for x in run['regular']["dynamics"]]
+            frac = [(args['ptr'] - x["train"]["nd"]) / args['ptr'] for x in run['regular']["dynamics"]]
             for _lam, _frac in zip(lam, frac):
                 if _frac > 0.1:
                     lam_star = _lam
@@ -504,8 +504,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     yield run
             del stretch_kernel
 
-        if args.final_features == 1:
-            parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
+        if args['final_features'] == 1:
+            parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args['L']) in n or 'classifier' in n]
             assert parameters
             kernels = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
             for out in run_kernel('final_features', args, *kernels, xtk, ytk, xte[:len(xtk)], yte[:len(xtk)]):
@@ -516,8 +516,8 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     yield run
             del kernels
 
-        if args.final_features_ptr == 1:
-            parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args.L) in n or 'classifier' in n]
+        if args['final_features_ptr'] == 1:
+            parameters = [p for n, p in f.named_parameters() if 'W{}'.format(args['L']) in n or 'classifier' in n]
             assert parameters
             assert len(xtk) >= len(xtr)
             kernels = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
@@ -529,7 +529,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     yield run
             del kernels
 
-        if args.final_headless == 1:
+        if args['final_headless'] == 1:
             parameters = [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n]
             assert len(xtk) >= len(xtr)
             kernels = compute_kernels(f, xtk, xte[:len(xtk)], parameters)
@@ -541,7 +541,7 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
                     yield run
             del kernels
 
-        if args.final_headless_ptr == 1:
+        if args['final_headless_ptr'] == 1:
             parameters = [p for n, p in f.named_parameters() if not 'f.W0.' in n and not 'f.conv_stem.w' in n]
             assert len(xtk) >= len(xtr)
             kernels = compute_kernels(f, xtk[:len(xtr)], xte[:len(xtk)], parameters)
@@ -559,22 +559,22 @@ def run_exp(args, f0, xtr, ytr, xtk, ytk, xte, yte):
 
 def init(args):
     torch.backends.cudnn.benchmark = True
-    if args.dtype == 'float64':
+    if args['dtype'] == 'float64':
         torch.set_default_dtype(torch.float64)
-    if args.dtype == 'float32':
+    if args['dtype'] == 'float32':
         torch.set_default_dtype(torch.float32)
 
     [(xte, yte, ite), (xtk, ytk, itk), (xtr, ytr, itr)] = get_binary_dataset(
-        args.dataset,
-        (args.pte, args.ptk, args.ptr),
-        (args.seed_testset + args.pte, args.seed_kernelset + args.ptk, args.seed_trainset + args.ptr),
-        args.d,
-        (args.data_param1, args.data_param2),
-        args.device,
+        args['dataset'],
+        (args['pte'], args['ptk'], args['ptr']),
+        (args['seed_testset'] + args['pte'], args['seed_kernelset'] + args['ptk'], args['seed_trainset'] + args['ptr']),
+        args['d'],
+        (args['data_param1'], args['data_param2']),
+        args['device'],
         torch.get_default_dtype()
     )
 
-    f, (xtr, xtk, xte) = init_arch((xtr, xtk, xte), **args.__dict__)
+    f, (xtr, xtk, xte) = init_arch((xtr, xtk, xte), **args)
 
     return f, xtr, ytr, itr, xtk, ytk, itk, xte, yte, ite
 
@@ -688,42 +688,43 @@ def main():
 
     parser.add_argument("--output", type=str, required=True)
     args = parser.parse_args()
+    args = args.__dict__
 
-    if args.device is None:
+    if args['device'] is None:
         if torch.cuda.is_available():
-            args.device = 'cuda'
+            args['device'] = 'cuda'
         else:
-            args.device = 'cpu'
+            args['device'] = 'cpu'
 
-    if args.pte is None:
-        args.pte = args.ptr
+    if args['pte'] is None:
+        args['pte'] = args['ptr']
 
-    if args.chunk is None:
-        args.chunk = max(args.ptr, args.pte, args.ptk, 100000)
+    if args['chunk'] is None:
+        args['chunk'] = max(args['ptr'], args['pte'], args['ptk'], 100000)
 
-    if args.max_wall_kernel is None:
-        args.max_wall_kernel = args.max_wall
+    if args['max_wall_kernel'] is None:
+        args['max_wall_kernel'] = args['max_wall']
 
-    if args.tau_over_h_kernel is None:
-        args.tau_over_h_kernel = args.tau_over_h
+    if args['tau_over_h_kernel'] is None:
+        args['tau_over_h_kernel'] = args['tau_over_h']
 
-    if args.seed_init == -1:
-        args.seed_init = args.seed_trainset
+    if args['seed_init'] == -1:
+        args['seed_init'] = args['seed_trainset']
 
-    with open(args.output, 'wb') as handle:
+    with open(args['output'], 'wb') as handle:
         pickle.dump(args,  handle)
 
     saved = False
     try:
         for data in execute(args):
             data['git'] = git
-            with open(args.output, 'wb') as handle:
+            with open(args['output'], 'wb') as handle:
                 pickle.dump(args, handle)
                 pickle.dump(data, handle)
             saved = True
     except:
         if not saved:
-            os.remove(args.output)
+            os.remove(args['output'])
         raise
 
 
