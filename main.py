@@ -160,11 +160,11 @@ def run_kernel(prefix, args, ktrtr, ktetr, ktete, xtr, ytr, xte, yte):
             break
 
 
-def run_regular(args, f0, xtr, ytr, xte, yte):
+def run_regular(args, f_init, xtr, ytr, xte, yte):
 
     with torch.no_grad():
-        ote0 = f0(xte)
-        otr0 = f0(xtr)
+        ote0 = f_init(xte)
+        otr0 = f_init(xtr)
 
     if args['f0'] == 0:
         ote0 = torch.zeros_like(ote0)
@@ -211,7 +211,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
 
     wall = perf_counter()
     dynamics = []
-    for state, internals in gradientflow(f0, xtr, ytr):
+    for state, internals in gradientflow(f_init, xtr, ytr):
         save_outputs = args['save_outputs']
         save = stop = False
         otr = internals['output']
@@ -243,7 +243,7 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
         state['grad_norm'] = internals['gradient'].norm().item()
         state['wall'] = perf_counter() - wall
         state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
-        state['dnorm'] = sum((p0 - p).norm().pow(2) for p0, p in zip(f0.parameters(), f.parameters())).sqrt().item()
+        state['dnorm'] = sum((p0 - p).norm().pow(2) for p0, p in zip(f_init.parameters(), f.parameters())).sqrt().item()
 
         if len(otr) == len(xtr) and state['grad_norm'] == 0:
             save = save_outputs = stop = True
@@ -280,18 +280,18 @@ def run_regular(args, f0, xtr, ytr, xte, yte):
             def getw(f, i):
                 return torch.cat(list(getattr(f.f, "W{}".format(i))))
             state['wnorm'] = [getw(f, i).norm().item() for i in range(f.f.L + 1)]
-            state['dwnorm'] = [(getw(f, i) - getw(f0, i)).norm().item() for i in range(f.f.L + 1)]
+            state['dwnorm'] = [(getw(f, i) - getw(f_init, i)).norm().item() for i in range(f.f.L + 1)]
             if args['save_weights']:
                 assert args['L'] == 1
                 W = [getw(f, i) for i in range(2)]
-                W0 = [getw(f0, i) for i in range(2)]
+                W0 = [getw(f_init, i) for i in range(2)]
                 state['w'] = [W[0][:, j].pow(2).mean().sqrt().item() for j in range(args['d'])]
                 state['dw'] = [(W[0][:, j] - W0[0][:, j]).pow(2).mean().sqrt().item() for j in range(args['d'])]
                 state['beta'] = W[1].pow(2).mean().sqrt().item()
                 state['dbeta'] = (W[1] - W0[1]).pow(2).mean().sqrt().item()
                 if args['bias']:
                     B = getattr(f.f, "B0")
-                    B0 = getattr(f0.f, "B0")
+                    B0 = getattr(f_init.f, "B0")
                     state['b'] = B.pow(2).mean().sqrt().item()
                     state['db'] = (B - B0).pow(2).mean().sqrt().item()
 

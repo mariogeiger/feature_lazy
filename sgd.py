@@ -54,6 +54,7 @@ def sgd_dynamics(f_init, xtr, ytr, out0=None, dt=None, bs=None, replacement=Fals
 
         lo = loss_func(oba, y, **args)
 
+        f.zero_grad()
         lo.mean().backward()
 
         state = {
