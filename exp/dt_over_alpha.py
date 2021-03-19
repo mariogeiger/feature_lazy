@@ -36,8 +36,8 @@ def main():
 
     for i in range(args.i_start, args.i_end):
         for j in range(args.j_start, args.j_end):
-            alpha = round_mantissa(args.base, i + j, args.tol)
-            dt = round_mantissa(args.base, -i, args.tol)
+            alpha = round_mantissa(args.base ** (i + j), args.tol)
+            dt = round_mantissa(args.base ** (-i), args.tol)
             runs += [exec_one(args.log_dir, args.cmd, ('alpha', alpha), (args.tlike, dt))]
 
     for r in runs:
