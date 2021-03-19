@@ -38,7 +38,7 @@ def main():
         for j in range(args.j_start, args.j_end):
             alpha = round_mantissa(args.base ** (i + j), args.tol)
             dt = round_mantissa(args.base ** (-i), args.tol)
-            runs += [exec_one(args.log_dir, args.cmd, ('alpha', alpha), (args.tlike, dt))]
+            runs += [exec_one(args.log_dir, args.cmd, [('alpha', alpha), (args.tlike, dt)])]
 
     for r in runs:
         r(False)  # wait but don't load
