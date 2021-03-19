@@ -2,7 +2,7 @@
 import argparse
 import math
 
-from grid.exec import exec_blocking
+from grid.exec import exec_one
 from grid import load
 
 
@@ -56,7 +56,7 @@ def main():
         print("{} < {} < {}".format(alpha_min, alpha, alpha_max))
 
         rs = [
-            exec_blocking(args.log_dir, args.cmd, (('h', args.h), ('alpha', alpha), ('seed_init', seed), ('max_wall', args.wall)))
+            exec_one(args.log_dir, args.cmd, (('h', args.h), ('alpha', alpha), ('seed_init', seed), ('max_wall', args.wall)))(True)
             for seed in args.seed_init
         ]
         value = mean([get_value(r) for r in rs])

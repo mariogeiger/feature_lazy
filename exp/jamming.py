@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring, invalid-name, line-too-long
 import argparse
 
-from grid.exec import exec_blocking
+from grid.exec import exec_one
 from grid import load
 
 
@@ -36,7 +36,7 @@ def main():
             jammed = False
         else:
             for seed in args.seed_init:
-                r = exec_blocking(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed), ('max_wall', args.wall)))
+                r = exec_one(args.log_dir, args.cmd, (('h', h), ('alpha', args.alpha), ('seed_init', seed), ('max_wall', args.wall)))(True)
                 if not r['finished']:
                     print("Already running elsewhere", h, seed, args.alpha)
                     return
