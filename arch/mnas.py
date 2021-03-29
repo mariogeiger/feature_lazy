@@ -110,12 +110,12 @@ class Mem:
 
 
 class MnasNetLike(nn.Module):
-    def __init__(self, d, h, cl, n_blocks=2, n_layers=2, dim=2):
+    def __init__(self, d, h, cl, n_blocks=2, n_layers=2, act=None, dim=2):
         super().__init__()
         c = Mem()
 
         self.conv_stem = NTKConv(c(d), c(round(4 * h)), k=5, s=2, p=2, bias=False, dim=dim)  # 16x16
-        self.act1 = torch.nn.SiLU()
+        self.act1 = act
 
         self.blocks = nn.Sequential(
             DepthwiseSeparableConv(c(), c(round(2 * h)), k=5, s=1, p=2, dim=dim),
@@ -126,7 +126,7 @@ class MnasNetLike(nn.Module):
                 self.blocks.add_module(f"ir{i}_{j}", InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0, dim=dim))
 
         self.conv_head = NTKConv(c(), c(round(20 * h)), k=1, s=1, bias=False, dim=dim)
-        self.act2 = torch.nn.SiLU()
+        self.act2 = act
 
         if dim == 1:
             self.global_pool = nn.AdaptiveAvgPool1d(1)

@@ -54,8 +54,7 @@ def init_arch(datasets, **args):
         assert args['bias'] == 0
         f = Wide_ResNet(datasets[0].size(1), 28, args['h'], act, 1, args['mix_angle'])
     elif args['arch'] == 'mnas':
-        assert args['act'] == 'swish'
-        f = MnasNetLike(datasets[0].size(1), args['h'], 1, args['cv_L1'], args['cv_L2'], dim=datasets[0].dim() - 2)
+        f = MnasNetLike(datasets[0].size(1), args['h'], 1, args['cv_L1'], args['cv_L2'], act=act, dim=datasets[0].dim() - 2)
     elif args['arch'] == 'mnist':
         assert args['dataset'] == 'mnist'
         f = MNISTNet(datasets[0].size(1), args['h'], 1, act)
