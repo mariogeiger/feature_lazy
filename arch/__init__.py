@@ -34,7 +34,8 @@ def init_arch(datasets, **args):
     factor = __act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item()
 
     def act(x):
-        return __act(x) * factor
+        b = args['act_beta']
+        return _act(b * x).mul_(factor / b)
 
     _d = abs(act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item() - 1)
     assert _d < 1e-2, _d
