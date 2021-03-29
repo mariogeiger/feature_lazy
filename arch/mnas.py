@@ -47,12 +47,12 @@ class NTKConv(nn.Module):
 
 class DepthwiseSeparableConv(nn.Module):
     """ DepthwiseSeparable block """
-    def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=torch.nn.SiLU, dim=2):
+    def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=None, dim=2):
         super().__init__()
         self.conv_dw = NTKConv(in_chs, in_chs, k, s, p, g=in_chs, bias=False, dim=dim)
-        self.act1 = act()
+        self.act1 = act
         self.conv_pw = NTKConv(in_chs, out_chs, k=1, bias=False, dim=dim)
-        self.act2 = act()
+        self.act2 = act
 
     def forward(self, x):
         x = self.conv_dw(x)
@@ -65,18 +65,18 @@ class DepthwiseSeparableConv(nn.Module):
 
 class InvertedResidual(nn.Module):
     """ Inverted residual block """
-    def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=torch.nn.SiLU, noskip=False, exp_ratio=6.0, dim=2):
+    def __init__(self, in_chs, out_chs, k=3, s=1, p=1, act=None, noskip=False, exp_ratio=6.0, dim=2):
         super().__init__()
         mid_chs = round(in_chs * exp_ratio)
         self.has_residual = (in_chs == out_chs and s == 1) and not noskip
 
         # Point-wise expansion
         self.conv_pw = NTKConv(in_chs, mid_chs, 1, bias=False, dim=dim)
-        self.act1 = act()
+        self.act1 = act
 
         # Depth-wise convolution
         self.conv_dw = NTKConv(mid_chs, mid_chs, k, s, p, g=mid_chs, bias=False, dim=dim)
-        self.act2 = act()
+        self.act2 = act
 
         # Point-wise linear projection
         self.conv_pwl = NTKConv(mid_chs, out_chs, 1, bias=False, dim=dim)
@@ -118,12 +118,12 @@ class MnasNetLike(nn.Module):
         self.act1 = act
 
         self.blocks = nn.Sequential(
-            DepthwiseSeparableConv(c(), c(round(2 * h)), k=5, s=1, p=2, dim=dim),
+            DepthwiseSeparableConv(c(), c(round(2 * h)), k=5, s=1, p=2, act=act, dim=dim),
         )
         for i in range(n_blocks):
-            self.blocks.add_module(f"ir{i}", InvertedResidual(c(), c(round((2 * i + 1) * h)), k=5, s=2, p=2, exp_ratio=3.0, dim=dim))
+            self.blocks.add_module(f"ir{i}", InvertedResidual(c(), c(round((2 * i + 1) * h)), k=5, s=2, p=2, exp_ratio=3.0, act=act, dim=dim))
             for j in range(n_layers - 1):
-                self.blocks.add_module(f"ir{i}_{j}", InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0, dim=dim))
+                self.blocks.add_module(f"ir{i}_{j}", InvertedResidual(c(), c(), k=5, s=1, p=2, exp_ratio=3.0, act=act, dim=dim))
 
         self.conv_head = NTKConv(c(), c(round(20 * h)), k=1, s=1, bias=False, dim=dim)
         self.act2 = act
