@@ -133,7 +133,7 @@ def run_sgd(f_init, xtr, ytr, xte, yte, **args):
         with torch.no_grad():
             ote = f(xte) - ote0
 
-        test_err = (ote * yte <= 0).double().mean().item()
+        test_err = ((ote * yte <= 0) | ~torch.isfinite(ote)).double().mean().item()
         if test_err < best_test_error:
             if tmp_outputs_index != -1:
                 dynamics[tmp_outputs_index]['train']['outputs'] = None
@@ -170,7 +170,7 @@ def run_sgd(f_init, xtr, ytr, xte, yte, **args):
         state['train'] = {
             'loss': loss_func(otr, ytr, **args).mean().item(),
             'aloss': args['alpha'] * loss_func(otr, ytr, **args).mean().item(),
-            'err': (otr * ytr <= 0).double().mean().item(),
+            'err': ((otr * ytr <= 0) | ~torch.isfinite(otr)).double().mean().item(),
             'nd': (args['alpha'] * otr * ytr < args['stop_margin']).long().sum().item(),
             'mind': (args['alpha'] * otr * ytr).min().item(),
             'maxd': (args['alpha'] * otr * ytr).max().item(),
