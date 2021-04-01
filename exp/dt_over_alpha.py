@@ -32,6 +32,8 @@ def main():
 
     parser.add_argument("--nseed", type=int)
 
+    parser.add_argument("--bs", type=int)
+
     args = parser.parse_args()
 
     runs = []
@@ -41,7 +43,7 @@ def main():
             for j in range(args.j_start, args.j_end):
                 alpha = round_mantissa(args.base ** (i + j), args.tol)
                 dt = round_mantissa(args.base ** (-i), args.tol)
-                runs += [exec_one(args.log_dir, args.cmd, (('alpha', alpha), (args.tlike, dt), ('seed_init', s)))]
+                runs += [exec_one(args.log_dir, args.cmd, (('alpha', alpha), (args.tlike, dt), ('seed_init', s), ('bs', args.bs)))]
 
     for r in runs:
         r(False)  # wait but don't load
