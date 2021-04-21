@@ -115,6 +115,7 @@ def run_sgd(f_init, xtr, ytr, xte, yte, **args):
         if not save:
             continue
 
+        state['t_'] = state['dt'] * args['alpha'] / args['h']
         state['grad_norm'] = internals['gradient'].norm().item()
         state['wall'] = perf_counter() - wall
         state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
@@ -305,11 +306,13 @@ def main():
     parser.add_argument("--save_state", type=int, default=0)
     parser.add_argument("--save_weights", type=int, default=0)
 
-    parser.add_argument("--alpha", type=float, required=True)
+    parser.add_argument("--alpha", type=float)
+    parser.add_argument("--alpha_", type=float)
     parser.add_argument("--subf0", type=int, default=1)
 
     parser.add_argument("--bs", type=int, required=True)
-    parser.add_argument("--dt", type=float, required=True)
+    parser.add_argument("--dt", type=float)
+    parser.add_argument("--dt_", type=float)
     parser.add_argument("--replacement", type=int, default=0)
 
     parser.add_argument("--max_wall", type=float, required=True)
@@ -338,6 +341,18 @@ def main():
 
     if args['seed_init'] == -1:
         args['seed_init'] = args['seed_trainset']
+
+    if args['alpha_'] is None:
+        args['alpha_'] = args['alpha'] / args['h']**0.5
+
+    if args['alpha'] is None:
+        args['alpha'] = args['alpha_'] * args['h']**0.5
+
+    if args['dt_'] is None:
+        args['dt_'] = args['dt'] * args['alpha'] / args['h']
+
+    if args['dt'] is None:
+        args['dt'] = args['dt_'] / args['alpha'] * args['h']
 
     with open(args['output'], 'wb') as handle:
         pickle.dump(args,  handle)
