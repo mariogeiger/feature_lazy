@@ -348,11 +348,15 @@ def main():
     if args['alpha'] is None:
         args['alpha'] = args['alpha_'] * args['h']**0.5
 
+    assert args['alpha'] == args['alpha_'] * args['h']**0.5
+
     if args['dt_'] is None:
         args['dt_'] = args['dt'] * args['alpha'] / args['h']
 
     if args['dt'] is None:
         args['dt'] = args['dt_'] / args['alpha'] * args['h']
+
+    assert args['dt'] == args['dt_'] / args['alpha'] * args['h']
 
     with open(args['output'], 'wb') as handle:
         pickle.dump(args,  handle)
