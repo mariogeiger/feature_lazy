@@ -22,6 +22,8 @@ def loglinspace(step, tau, end=None):
 
 
 def loss_func(f, y, **args):
+    if args['loss'] == 'exp':
+        return (args['loss_margin'] - args['alpha'] * f * y).exp() / args['alpha']
     if args['loss'] == 'hinge':
         return (args['loss_margin'] - args['alpha'] * f * y).relu() / args['alpha']
     if args['loss'] == 'softhinge':
