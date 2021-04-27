@@ -68,6 +68,8 @@ def init_arch(datasets, **args):
     else:
         raise ValueError('arch not specified')
 
+    f = torch.jit.trace(f, datasets[0][:5])
+
     f = _SplitEval(f, args['chunk'])
     f = f.to(args['device'])
 
