@@ -35,6 +35,7 @@ def loss_func(f, y, **args):
 
 def sgd_dynamics(f_init, xtr, ytr, out0=None, dt=None, bs=None, replacement=False, **args):
     f = copy.deepcopy(f_init)
+    f.f = torch.jit.trace(f.f, xtr[:5])
 
     gen = torch.Generator(device="cpu").manual_seed(args['seed_batch'])
 
