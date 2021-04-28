@@ -347,7 +347,7 @@ def main():
     parser.add_argument("--wall_max_early_stopping", type=float)
     parser.add_argument("--chunk", type=int)
 
-    parser.add_argument("--loss", type=str, default="softhinge2")
+    parser.add_argument("--loss", type=str, default="hinge")
     parser.add_argument("--loss_beta", type=float, default=3.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
