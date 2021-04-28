@@ -21,6 +21,25 @@ def loglinspace(step, tau, end=None):
         t = int(t + 1 + step * (1 - math.exp(-t / tau)))
 
 
+class _SoftUnitStep(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        y = torch.zeros_like(x)
+        m = (x > 0.0)
+        y[m] = (-1/x[m]).exp()
+        return y
+
+    @staticmethod
+    def backward(ctx, dy):
+        x, = ctx.saved_tensors
+        dx = torch.zeros_like(x)
+        m = (x > 0.0)
+        xm = x[m]
+        dx[m] = (-1/xm).exp() / xm.pow(2)
+        return dx * dy
+
+
 def loss_func(f, y, **args):
     if args['loss'] == 'exp':
         return (args['loss_margin'] - args['alpha'] * f * y).exp() / args['alpha']
@@ -28,6 +47,10 @@ def loss_func(f, y, **args):
         return (args['loss_margin'] - args['alpha'] * f * y).relu() / args['alpha']
     if args['loss'] == 'softhinge':
         sp = partial(torch.nn.functional.softplus, beta=args['loss_beta'])
+        return sp(args['loss_margin'] - args['alpha'] * f * y) / args['alpha']
+    if args['loss'] == 'softhinge2':
+        def sp(x):
+            return _SoftUnitStep.apply(args['loss_beta'] * x) * x
         return sp(args['loss_margin'] - args['alpha'] * f * y) / args['alpha']
     if args['loss'] == 'qhinge':
         return 0.5 * (args['loss_margin'] - args['alpha'] * f * y).relu().pow(2) / args['alpha']
@@ -324,8 +347,8 @@ def main():
     parser.add_argument("--wall_max_early_stopping", type=float)
     parser.add_argument("--chunk", type=int)
 
-    parser.add_argument("--loss", type=str, default="softhinge")
-    parser.add_argument("--loss_beta", type=float, default=20.0)
+    parser.add_argument("--loss", type=str, default="softhinge2")
+    parser.add_argument("--loss_beta", type=float, default=3.0)
     parser.add_argument("--loss_margin", type=float, default=1.0)
     parser.add_argument("--stop_margin", type=float, default=1.0)
 
