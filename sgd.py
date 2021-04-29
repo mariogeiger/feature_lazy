@@ -383,6 +383,11 @@ def main():
     if args['seed_batch'] == 'seed_init':
         args['seed_batch'] = args['seed_init']
 
+    args['seed_init'] = int(args['seed_init'])
+    args['seed_batch'] = int(args['seed_batch'])
+    args['seed_trainset'] = int(args['seed_trainset'])
+    args['seed_testset'] = int(args['seed_testset'])
+
     with open(args['output'], 'wb') as handle:
         pickle.dump(args,  handle)
 
