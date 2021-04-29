@@ -40,7 +40,7 @@ def init_arch(datasets, **args):
     _d = abs(act(torch.randn(100000, dtype=torch.float64)).pow(2).mean().rsqrt().item() - 1)
     assert _d < 1e-2, _d
 
-    torch.manual_seed(args['seed_init'] + hash(args['alpha']) + args['ptr'])
+    torch.manual_seed(args['seed_init'])
 
     if args['arch'] == 'fc':
         assert args['L'] is not None

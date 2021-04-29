@@ -304,10 +304,10 @@ def main():
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--dtype", type=str, default='float64')
 
-    parser.add_argument("--seed_init", type=int, default=0)
-    parser.add_argument("--seed_testset", type=int, default=0)
-    parser.add_argument("--seed_trainset", type=int, default=0)
-    parser.add_argument("--seed_batch", type=int, default=0)
+    parser.add_argument("--seed_init", default=0)
+    parser.add_argument("--seed_batch", default=0)
+    parser.add_argument("--seed_testset", default=0)
+    parser.add_argument("--seed_trainset", default=0)
 
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
@@ -367,9 +367,6 @@ def main():
     if args['chunk'] is None:
         args['chunk'] = max(args['ptr'], args['pte'], 100000)
 
-    if args['seed_init'] == -1:
-        args['seed_init'] = args['seed_trainset']
-
     if args['alpha_'] is None:
         args['alpha_'] = args['alpha'] / args['h']**0.5
     else:
@@ -379,6 +376,12 @@ def main():
         args['dt_'] = args['dt'] * args['alpha'] / args['h']
     else:
         args['dt'] = args['dt_'] / args['alpha'] * args['h']
+
+    if args['seed_init'] == 'seed_trainset':
+        args['seed_init'] = args['seed_trainset']
+
+    if args['seed_batch'] == 'seed_init':
+        args['seed_batch'] = args['seed_init']
 
     with open(args['output'], 'wb') as handle:
         pickle.dump(args,  handle)
