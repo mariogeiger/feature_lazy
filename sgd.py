@@ -374,7 +374,7 @@ def main():
     else:
         args['alpha'] = args['alpha_'] * args['h']**0.5
 
-    assert args['dt'] is not None + args['dt_'] is not None + args['dt_m1'] is not None == 1
+    assert (args['dt'] is not None) + (args['dt_'] is not None) + (args['dt_m1'] is not None) == 1
 
     if args['dt_m1'] is None:
         if args['dt'] is not None:
