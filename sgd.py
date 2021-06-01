@@ -142,6 +142,7 @@ def run_sgd(f_init, xtr, ytr, xte, yte, **args):
             continue
 
         state['t_'] = state['dt'] * args['alpha'] / args['h']
+        state['t_m1'] = state['dt'] / args['alpha']
         state['grad_norm'] = internals['gradient'].norm().item()
         state['wall'] = perf_counter() - wall
         state['norm'] = sum(p.norm().pow(2) for p in f.parameters()).sqrt().item()
@@ -341,6 +342,7 @@ def main():
     parser.add_argument("--bs", type=int, required=True)
     parser.add_argument("--dt", type=float)
     parser.add_argument("--dt_", type=float)
+    parser.add_argument("--dt_m1", type=float)
     parser.add_argument("--replacement", type=int, default=0)
 
     parser.add_argument("--max_wall", type=float, required=True)
@@ -371,6 +373,16 @@ def main():
         args['alpha_'] = args['alpha'] / args['h']**0.5
     else:
         args['alpha'] = args['alpha_'] * args['h']**0.5
+
+    assert args['dt'] is not None + args['dt_'] is not None + args['dt_m1'] is not None == 1
+
+    if args['dt_m1'] is None:
+        if args['dt'] is not None:
+            args['dt_m1'] = args['dt'] / args['alpha']
+        if args['dt_'] is not None:
+            args['dt_m1'] = args['dt_'] / args['alpha']**2 * args['h']
+    else:
+        args['dt'] = args['dt_m1'] * args['alpha']
 
     if args['dt_'] is None:
         args['dt_'] = args['dt'] * args['alpha'] / args['h']
