@@ -343,6 +343,7 @@ def main():
     parser.add_argument("--dt", type=float)
     parser.add_argument("--dt_", type=float)
     parser.add_argument("--dt_m1", type=float)
+    parser.add_argument("--temp", type=float)
     parser.add_argument("--replacement", type=int, default=0)
 
     parser.add_argument("--max_wall", type=float, required=True)
@@ -374,7 +375,11 @@ def main():
     else:
         args['alpha'] = args['alpha_'] * args['h']**0.5
 
-    assert (args['dt'] is not None) + (args['dt_'] is not None) + (args['dt_m1'] is not None) == 1
+    # dt and derivatives
+    assert (args['dt'] is not None) + (args['dt_'] is not None) + (args['dt_m1'] is not None) + (args['temp'] is not None) == 1
+
+    if args['temp'] is not None:
+        args['dt'] = args['temp'] * args['alpha'] * args['h'] * args['bs']
 
     if args['dt_m1'] is None:
         if args['dt'] is not None:
@@ -388,6 +393,10 @@ def main():
         args['dt_'] = args['dt'] * args['alpha'] / args['h']
     else:
         args['dt'] = args['dt_'] / args['alpha'] * args['h']
+
+    if args['temp'] is None:
+        args['temp'] = args['dt'] / (args['alpha'] * args['h'] * args['bs'])
+    # end
 
     if args['seed_init'] == 'seed_trainset':
         args['seed_init'] = args['seed_trainset']
