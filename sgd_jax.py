@@ -114,9 +114,27 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
             wckpt = time.perf_counter()
             save_step += ckpt_factor * step
 
+            save = False
+            stop = False
+
             l, err = jit_le(w, out0tr, xtr, ytr)
 
-            if l < (1 - ckpt_loss) * l0 or step == 0:
+            if l == 0.0:
+                stop = True
+
+            if time.perf_counter() - wall0 > max_wall:
+                stop = True
+
+            if step == 0:
+                save = True
+
+            if l < (1 - ckpt_loss) * l0:
+                save = True
+
+            if stop:
+                save = True
+
+            if save:
                 mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
 
                 train = dict(
@@ -153,7 +171,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                 )
                 dynamics.append(state)
 
-                if time.perf_counter() - wall_print > 1.0:
+                if time.perf_counter() - wall_print > 1.0 or stop:
                     wall_print = time.perf_counter()
 
                     print((
@@ -164,20 +182,15 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
 
                     yield dynamics
 
-                if state['train']['loss'] == 0.0:
-                    break
-
-                if state['wall'] > max_wall:
-                    break
-
                 del state
 
             wall_ckpt += time.perf_counter() - wckpt
 
+            if stop:
+                return
+
         w = jax.tree_multimap(lambda w, g: w - dt * g, w, g)
         t += dt
-
-    yield dynamics
 
 
 def execute(arch, h, L, act, seed_init, **args):
