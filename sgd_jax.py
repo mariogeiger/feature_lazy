@@ -194,7 +194,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
 
 
 def execute(arch, h, L, act, seed_init, **args):
-    print('device', jnp.ones(3).device_buffer.device(), flush=True)
+    print('device', jnp.ones(3).device_buffer.device(), 'dtype', jnp.ones(3).dtype, flush=True)
 
     if act == 'silu':
         act = nn.silu
