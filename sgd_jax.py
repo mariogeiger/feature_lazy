@@ -68,12 +68,15 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
     return xtr, xte, y(xtr), y(xte)
 
 
-def sgd(f, loss, bs, key, w, out0, xtr, ytr):
-    i = jax.random.permutation(key, xtr.shape[0])[:bs]
+def sgd(f, loss, bs, dt, key, w, out0, xtr, ytr):
+    key, k = jax.random.split(key)
+    i = jax.random.permutation(k, xtr.shape[0])[:bs]
     x = xtr[i]
     y = ytr[i]
     o0 = out0[i]
-    return jax.grad(lambda w: jnp.mean(loss(f.apply(w, x) - o0, y)))(w)
+    g = jax.grad(lambda w: jnp.mean(loss(f.apply(w, x) - o0, y)))(w)
+    w = jax.tree_multimap(lambda w, g: w - dt * g, w, g)
+    return key, w
 
 
 def hinge(alpha, o, y):
@@ -85,7 +88,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
 
     loss = partial(hinge, alpha)
 
-    jit_sgd = jax.jit(partial(sgd, f, loss, bs))
+    jit_sgd = jax.jit(partial(sgd, f, loss, bs, dt))
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
 
     @jax.jit
@@ -106,9 +109,6 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
     save_step = 0
     t = 0
     for step in count():
-
-        key_batch, k = jax.random.split(key_batch)
-        g = jit_sgd(k, w, out0tr, xtr, ytr)
 
         if step >= save_step:
             wckpt = time.perf_counter()
@@ -189,7 +189,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
             if stop:
                 return
 
-        w = jax.tree_multimap(lambda w, g: w - dt * g, w, g)
+        key_batch, w = jit_sgd(key_batch, w, out0tr, xtr, ytr)
         t += dt
 
 
