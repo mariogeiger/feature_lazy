@@ -68,7 +68,8 @@ def sgd(f, loss, bs, key, w, out0, xtr, ytr):
     i = jax.random.permutation(key, xtr.shape[0])[:bs]
     x = xtr[i]
     y = ytr[i]
-    return jax.grad(lambda w: jnp.mean(loss(f.apply(w, x) - out0, y)))(w)
+    o0 = out0[i]
+    return jax.grad(lambda w: jnp.mean(loss(f.apply(w, x) - o0, y)))(w)
 
 
 def hinge(alpha, o, y):
