@@ -61,6 +61,10 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
         def y(x):
             return 2 * (x[:, 0] > -0.3) * (x[:, 0] < 1.18549) - 1
 
+    elif dataset == 'sign':
+        def y(x):
+            return 2 * (x[:, 0] > 0) - 1
+
     return xtr, xte, y(xtr), y(xte)
 
 
@@ -173,6 +177,8 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
 
 
 def execute(arch, h, L, act, seed_init, **args):
+    print('device', jnp.ones(3).device_buffer.device(), flush=True)
+
     if act == 'silu':
         act = nn.silu
     if act == 'relu':
@@ -202,8 +208,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed_init", default=0)
     parser.add_argument("--seed_batch", default=0)
-    parser.add_argument("--seed_testset", default=0)
     parser.add_argument("--seed_trainset", default=0)
+    parser.add_argument("--seed_testset", default=1)
 
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
