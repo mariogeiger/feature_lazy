@@ -85,11 +85,14 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
 
     @jax.jit
-    def jit_ole(w, x, y):
-        o = f.apply(w, x)
-        return o, jnp.mean(loss(o, y)), jnp.mean(o * y <= 0)
-    out0tr, l0, _ = jit_ole(w0, xtr, ytr)
-    out0te, _, _ = jit_ole(w0, xte, yte)
+    def jit_le(w, out0, x, y):
+        pred = f.apply(w, x) - out0
+        return jnp.mean(loss(pred, y)), jnp.mean(pred * y <= 0)
+
+    out0tr = f.apply(w0, xtr)
+    out0te = f.apply(w0, xte)
+    l0, _ = jit_le(w0, out0tr, xtr, ytr)
+    _, _ = jit_le(w0, out0te, xte, yte)
 
     dynamics = []
     w = w0
@@ -105,7 +108,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
         if step >= save_step:
             save_step += ckpt_factor * step
 
-            _, l, err = jit_ole(w, xtr, ytr)
+            l, err = jit_le(w, out0tr, xtr, ytr)
 
             if l < (1 - ckpt_loss) * l0 or step == 0:
                 mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
@@ -121,7 +124,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                 del l, err
 
                 mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
-                _, l, err = jit_ole(w, xte, yte)
+                l, err = jit_le(w, out0tr, xte, yte)
 
                 test = dict(
                     loss=float(l),
