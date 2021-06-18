@@ -38,7 +38,7 @@ class MLP(nn.Module):
         return x[..., 0]
 
 
-def mean_var_grad(f, loss, w, x, y):
+def mean_var_grad(f, loss, w, out0, x, y):
     j = jax.jacobian(f.apply, 0)(w, x)
     j = jnp.concatenate([jnp.reshape(x, (x.shape[0], math.prod(x.shape[1:]))) for x in jax.tree_leaves(j)], 1)  # [x, w]
     # j[i, j] = d f(w, x_i) / d w_j
@@ -46,7 +46,7 @@ def mean_var_grad(f, loss, w, x, y):
     var_f = jnp.mean(jnp.sum((j - mean_f)**2, 1))
 
     dl = jax.vmap(jax.grad(loss, 0), (0, 0), 0)
-    j = dl(f.apply(w, x), y)[:, None] * j
+    j = dl(f.apply(w, x) - out0, y)[:, None] * j
     mean_l = jnp.mean(j, 0)
     var_l = jnp.mean(jnp.sum((j - mean_l)**2, 1))
 
@@ -59,16 +59,16 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
 
     if dataset == 'stripe':
         def y(x):
-            return (x[:, 0] > -0.3) * (x[:, 0] < 1.18549)
+            return 2 * (x[:, 0] > -0.3) * (x[:, 0] < 1.18549) - 1
 
     return xtr, xte, y(xtr), y(xte)
 
 
-def sgd(f, loss, bs, key, w, xtr, ytr):
+def sgd(f, loss, bs, key, w, out0, xtr, ytr):
     i = jax.random.permutation(key, xtr.shape[0])[:bs]
     x = xtr[i]
     y = ytr[i]
-    return jax.grad(lambda w: jnp.mean(loss(f.apply(w, x), y)))(w)
+    return jax.grad(lambda w: jnp.mean(loss(f.apply(w, x) - out0, y)))(w)
 
 
 def hinge(alpha, o, y):
@@ -84,10 +84,11 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
 
     @jax.jit
-    def jit_le(w, x, y):
+    def jit_ole(w, x, y):
         o = f.apply(w, x)
-        return jnp.mean(loss(o, y)), jnp.mean(o * y <= 0)
-    l0, _ = jit_le(w0, xtr, ytr)
+        return o, jnp.mean(loss(o, y)), jnp.mean(o * y <= 0)
+    out0tr, l0, _ = jit_ole(w0, xtr, ytr)
+    out0te, _, _ = jit_ole(w0, xte, yte)
 
     dynamics = []
     w = w0
@@ -98,15 +99,15 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
     for step in count():
 
         key_batch, k = jax.random.split(key_batch)
-        g = jit_sgd(k, w, xtr, ytr)
+        g = jit_sgd(k, w, out0tr, xtr, ytr)
 
         if step >= save_step:
             save_step += ckpt_factor * step
 
-            l, err = jit_le(w, xtr, ytr)
+            _, l, err = jit_ole(w, xtr, ytr)
 
             if l < (1 - ckpt_loss) * l0 or step == 0:
-                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
+                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0tr, xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
 
                 train = dict(
                     loss=float(l),
@@ -118,8 +119,8 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                 )
                 del l, err
 
-                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
-                l, err = jit_le(w, xte, yte)
+                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0te, xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
+                _, l, err = jit_ole(w, xte, yte)
 
                 test = dict(
                     loss=float(l),
