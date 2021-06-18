@@ -227,8 +227,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed_init", default=0)
     parser.add_argument("--seed_batch", default=0)
-    parser.add_argument("--seed_trainset", default=0)
-    parser.add_argument("--seed_testset", default=1)
+    parser.add_argument("--seed_trainset", default=-1)
+    parser.add_argument("--seed_testset", default=-2)
 
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
