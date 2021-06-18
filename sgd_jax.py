@@ -102,6 +102,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
     w = w0
     wall0 = time.perf_counter()
     wall_print = 0
+    wall_ckpt = 0
     save_step = 0
     t = 0
     for step in count():
@@ -110,6 +111,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
         g = jit_sgd(k, w, out0tr, xtr, ytr)
 
         if step >= save_step:
+            wckpt = time.perf_counter()
             save_step += ckpt_factor * step
 
             l, err = jit_le(w, out0tr, xtr, ytr)
@@ -155,7 +157,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     wall_print = time.perf_counter()
 
                     print((
-                        f"[{step} t={t:.2e} w={state['wall']:.0f}] "
+                        f"[{step} t={t:.2e} w={state['wall']:.0f} ckpt={100 * wall_ckpt / state['wall']:.0f}%] "
                         f"[train aL={alpha * state['train']['loss']:.2e} err={state['train']['err']:.2f}] "
                         f"[test aL={alpha * state['test']['loss']:.2e} err={state['test']['err']:.2f}]"
                     ), flush=True)
@@ -169,6 +171,8 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     break
 
                 del state
+
+            wall_ckpt += time.perf_counter() - wckpt
 
         w = jax.tree_multimap(lambda w, g: w - dt * g, w, g)
         t += dt
