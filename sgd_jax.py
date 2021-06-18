@@ -190,8 +190,10 @@ def execute(arch, h, L, act, seed_init, **args):
         f = MLP([h] * L, act)
 
     xtr, xte, ytr, yte = dataset(**args)
+    print('dataset generated', flush=True)
 
     w = f.init(jax.random.PRNGKey(seed_init), xtr[:2])
+    print('network initialized', flush=True)
 
     for d in train(f, w, xtr, xte, ytr, yte, **args):
         yield dict(
