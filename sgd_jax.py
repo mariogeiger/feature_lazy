@@ -107,7 +107,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
             _, l, err = jit_ole(w, xtr, ytr)
 
             if l < (1 - ckpt_loss) * l0 or step == 0:
-                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0tr, xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
+                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
 
                 train = dict(
                     loss=float(l),
@@ -119,7 +119,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                 )
                 del l, err
 
-                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0te, xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
+                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
                 _, l, err = jit_ole(w, xte, yte)
 
                 test = dict(
