@@ -89,10 +89,10 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
         pred = f.apply(w, x) - out0
         return jnp.mean(loss(pred, y)), jnp.mean(pred * y <= 0)
 
-    out0tr = f.apply(w0, xtr)
-    out0te = f.apply(w0, xte)
-    l0, _ = jit_le(w0, out0tr, xtr, ytr)
-    _, _ = jit_le(w0, out0te, xte, yte)
+    out0tr = jax.jit(f.apply)(w0, xtr)
+    out0te = jax.jit(f.apply)(w0, xte)
+    l0, err0 = jit_le(w0, out0tr, xtr, ytr)
+    assert err0 == 1
 
     dynamics = []
     w = w0
