@@ -155,7 +155,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     wall_print = time.perf_counter()
 
                     print((
-                        f"[{step} t={t:.2e}] "
+                        f"[{step} t={t:.2e} w={state['wall']:.0f}] "
                         f"[train aL={alpha * state['train']['loss']:.2e} err={state['train']['err']:.2f}] "
                         f"[test aL={alpha * state['test']['loss']:.2e} err={state['test']['err']:.2f}]"
                     ), flush=True)
