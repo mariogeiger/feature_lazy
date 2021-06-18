@@ -124,7 +124,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                 del l, err
 
                 mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
-                l, err = jit_le(w, out0tr, xte, yte)
+                l, err = jit_le(w, out0te, xte, yte)
 
                 test = dict(
                     loss=float(l),
