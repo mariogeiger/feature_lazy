@@ -236,7 +236,7 @@ def main():
 
     parser.add_argument("--max_wall", type=float, required=True)
 
-    parser.add_argument("--ckpt_factor", type=float, default=1e-3)
+    parser.add_argument("--ckpt_factor", type=float, default=2e-3)
     parser.add_argument("--ckpt_loss", type=float, default=1e-3)
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
 
