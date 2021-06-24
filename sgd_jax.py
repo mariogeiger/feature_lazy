@@ -94,11 +94,11 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
     @jax.jit
     def jit_le(w, out0, x, y):
         pred = f.apply(w, x) - out0
-        return jnp.mean(loss(pred, y)), jnp.mean(pred * y <= 0)
+        return pred, jnp.mean(loss(pred, y)), jnp.mean(pred * y <= 0)
 
     out0tr = jax.jit(f.apply)(w0, xtr)
     out0te = jax.jit(f.apply)(w0, xte)
-    l0, err0 = jit_le(w0, out0tr, xtr, ytr)
+    _, l0, err0 = jit_le(w0, out0tr, xtr, ytr)
     assert err0 == 1
 
     dynamics = []
@@ -117,7 +117,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
             save = False
             stop = False
 
-            l, err = jit_le(w, out0tr, xtr, ytr)
+            pred, l, err = jit_le(w, out0tr, xtr, ytr)
 
             if l == 0.0:
                 stop = True
@@ -144,11 +144,13 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     grad_f_var=float(var_f),
                     grad_l_norm=float(mean_l),
                     grad_l_var=float(var_l),
+                    pred=(pred if stop else None),
+                    label=(ytr if stop else None),
                 )
                 del l, err
 
                 mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
-                l, err = jit_le(w, out0te, xte, yte)
+                pred, l, err = jit_le(w, out0te, xte, yte)
 
                 test = dict(
                     loss=float(l),
@@ -157,6 +159,8 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     grad_f_var=float(var_f),
                     grad_l_norm=float(mean_l),
                     grad_l_var=float(var_l),
+                    pred=(pred if stop else None),
+                    label=(yte if stop else None),
                 )
                 del l, err
 
