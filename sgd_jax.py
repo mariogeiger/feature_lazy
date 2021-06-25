@@ -96,10 +96,9 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
         pred = f.apply(w, x) - out0
         return pred, jnp.mean(loss(pred, y)), jnp.mean(pred * y <= 0)
 
-    out0tr = jax.jit(f.apply)(w0, xtr)
-    out0te = jax.jit(f.apply)(w0, xte)
-    _, l0, err0 = jit_le(w0, out0tr, xtr, ytr)
-    assert err0 == 1
+    out0tr = f.apply(w0, xtr)
+    out0te = f.apply(w0, xte)
+    _, l0, _ = jit_le(w0, out0tr, xtr, ytr)
 
     dynamics = []
     w = w0
@@ -254,7 +253,7 @@ def main():
     parser.add_argument("--max_wall", type=float, required=True)
 
     parser.add_argument("--ckpt_factor", type=float, default=2e-3)
-    parser.add_argument("--ckpt_loss", type=float, default=1e-3)
+    parser.add_argument("--ckpt_loss", type=float, default=1e-4)
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
 
     parser.add_argument("--output", type=str, required=True)
