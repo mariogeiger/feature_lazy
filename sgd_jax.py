@@ -11,6 +11,7 @@ from typing import Callable, Sequence
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 
 def normalize_act(phi):
@@ -39,18 +40,21 @@ class MLP(nn.Module):
 
 
 def mean_var_grad(f, loss, w, out0, x, y):
-    j = jax.jacobian(f.apply, 0)(w, x)
+    j = jax.jacobian(f, 0)(w, x)
     j = jnp.concatenate([jnp.reshape(x, (x.shape[0], math.prod(x.shape[1:]))) for x in jax.tree_leaves(j)], 1)  # [x, w]
     # j[i, j] = d f(w, x_i) / d w_j
     mean_f = jnp.mean(j, 0)
     var_f = jnp.mean(jnp.sum((j - mean_f)**2, 1))
 
-    dl = jax.vmap(jax.grad(loss, 0), (0, 0), 0)
-    j = dl(f.apply(w, x) - out0, y)[:, None] * j
-    mean_l = jnp.mean(j, 0)
-    var_l = jnp.mean(jnp.sum((j - mean_l)**2, 1))
+    # kernel[mu,nu] = sum_j j[mu,j] j[nu,j]
+    kernel = j @ j.T
 
-    return jnp.sum(mean_f**2), var_f, jnp.sum(mean_l**2), var_l
+    dl = jax.vmap(jax.grad(loss, 0), (0, 0), 0)
+    lj = dl(f(w, x) - out0, y)[:, None] * j
+    mean_l = jnp.mean(lj, 0)
+    var_l = jnp.mean(jnp.sum((lj - mean_l)**2, 1))
+
+    return jnp.sum(mean_f**2), var_f, jnp.sum(mean_l**2), var_l, kernel
 
 
 def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
@@ -74,7 +78,7 @@ def sgd(f, loss, bs, dt, key, w, out0, xtr, ytr):
     x = xtr[i]
     y = ytr[i]
     o0 = out0[i]
-    g = jax.grad(lambda w: jnp.mean(loss(f.apply(w, x) - o0, y)))(w)
+    g = jax.grad(lambda w: jnp.mean(loss(f(w, x) - o0, y)))(w)
     w = jax.tree_multimap(lambda w, g: w - dt * g, w, g)
     return key, w
 
@@ -83,7 +87,7 @@ def hinge(alpha, o, y):
     return nn.relu(1.0 - alpha * o * y) / alpha
 
 
-def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckpt_loss, ckpt_grad_stats, max_wall, **args):
+def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckpt_loss, ckpt_grad_stats, ckpt_kernels, max_wall, max_step, **args):
     key_batch = jax.random.PRNGKey(seed_batch)
 
     loss = partial(hinge, alpha)
@@ -93,12 +97,15 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
 
     @jax.jit
     def jit_le(w, out0, x, y):
-        pred = f.apply(w, x) - out0
+        pred = f(w, x) - out0
         return pred, jnp.mean(loss(pred, y)), jnp.mean(pred * y <= 0)
 
-    out0tr = f.apply(w0, xtr)
-    out0te = f.apply(w0, xte)
+    out0tr = f(w0, xtr)
+    out0te = f(w0, xte)
     _, l0, _ = jit_le(w0, out0tr, xtr, ytr)
+
+    _, _, _, _, kernel_tr0 = jit_mean_var_grad(w0, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
+    _, _, _, _, kernel_te0 = jit_mean_var_grad(w0, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
 
     dynamics = []
     w = w0
@@ -124,6 +131,9 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
             if time.perf_counter() - wall0 > max_wall:
                 stop = True
 
+            if step > max_step:
+                stop = True
+
             if step == 0:
                 save = True
 
@@ -134,7 +144,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                 save = True
 
             if save:
-                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
+                mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
 
                 train = dict(
                     loss=float(l),
@@ -145,10 +155,12 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     grad_l_var=float(var_l),
                     pred=(pred if stop else None),
                     label=(ytr if stop else None),
+                    kernel=(np.asarray(kernel) if ckpt_kernels else None),
+                    kernel_change=float(jnp.mean((kernel - kernel_tr0)**2)),
                 )
                 del l, err
 
-                mean_f, var_f, mean_l, var_l = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
+                mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
                 pred, l, err = jit_le(w, out0te, xte, yte)
 
                 test = dict(
@@ -160,6 +172,8 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     grad_l_var=float(var_l),
                     pred=(pred if stop else None),
                     label=(yte if stop else None),
+                    kernel=(np.asarray(kernel) if ckpt_kernels else None),
+                    kernel_change=float(jnp.mean((kernel - kernel_te0)**2)),
                 )
                 del l, err
 
@@ -201,21 +215,23 @@ def execute(arch, h, L, act, seed_init, **args):
 
     if act == 'silu':
         act = nn.silu
+    if act == 'gelu':
+        act = nn.gelu
     if act == 'relu':
         act = nn.relu
 
     act = normalize_act(act)
 
     if arch == 'mlp':
-        f = MLP([h] * L, act)
+        model = MLP([h] * L, act)
 
     xtr, xte, ytr, yte = dataset(**args)
     print('dataset generated', flush=True)
 
-    w = f.init(jax.random.PRNGKey(seed_init), xtr[:2])
+    w = model.init(jax.random.PRNGKey(seed_init), xtr)
     print('network initialized', flush=True)
 
-    for d in train(f, w, xtr, xte, ytr, yte, **args):
+    for d in train(model.apply, w, xtr, xte, ytr, yte, **args):
         yield dict(
             dynamics=d,
         )
@@ -251,10 +267,12 @@ def main():
     parser.add_argument("--temp", type=float)
 
     parser.add_argument("--max_wall", type=float, required=True)
+    parser.add_argument("--max_step", type=float, default=np.inf)
 
     parser.add_argument("--ckpt_factor", type=float, default=2e-3)
     parser.add_argument("--ckpt_loss", type=float, default=1e-4)
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
+    parser.add_argument("--ckpt_kernels", type=int, default=0)
 
     parser.add_argument("--output", type=str, required=True)
     args = parser.parse_args().__dict__
