@@ -6,37 +6,40 @@ import subprocess
 import time
 from functools import partial
 from itertools import count
-from typing import Callable, Sequence
 
-import flax.linen as nn
+import haiku as hk
 import jax
 import jax.numpy as jnp
 import numpy as np
 
 
 def normalize_act(phi):
-    k = jax.random.PRNGKey(0)
-    x = jax.random.normal(k, (1_000_000,))
-    c = jnp.mean(phi(x)**2)**0.5
+    with jax.core.eval_context():
+        k = jax.random.PRNGKey(0)
+        x = jax.random.normal(k, (1_000_000,))
+        c = jnp.mean(phi(x)**2)**0.5
 
     def rho(x):
         return phi(x) / c
     return rho
 
 
-class MLP(nn.Module):
-    features: Sequence[int]
-    phi: Callable
+def mlp(features, phi, x):
+    for feat in features:
+        d = hk.Linear(
+            feat,
+            with_bias=False,
+            w_init=hk.initializers.RandomNormal()
+        )
+        x = phi(d(x) / x.shape[-1]**0.5)
 
-    @nn.compact
-    def __call__(self, x):
-        for feat in self.features:
-            d = nn.Dense(feat, kernel_init=jax.random.normal, use_bias=False)
-            x = self.phi(d(x) / x.shape[-1]**0.5)
-
-        d = nn.Dense(1, kernel_init=jax.random.normal, use_bias=False)
-        x = d(x) / x.shape[-1]
-        return x[..., 0]
+    d = hk.Linear(
+        1,
+        with_bias=False,
+        w_init=hk.initializers.RandomNormal()
+    )
+    x = d(x) / x.shape[-1]
+    return x[..., 0]
 
 
 def mean_var_grad(f, loss, w, out0, x, y):
@@ -83,8 +86,13 @@ def sgd(f, loss, bs, dt, key, w, out0, xtr, ytr):
     return key, w
 
 
+def sgd_n(f, loss, bs, dt, key, num, w, out0, xtr, ytr):
+    fun = lambda _i, key_w: sgd(f, loss, bs, dt, key_w[0], key_w[1], out0, xtr, ytr)
+    return jax.lax.fori_loop(0, num, fun, (key, w))
+
+
 def hinge(alpha, o, y):
-    return nn.relu(1.0 - alpha * o * y) / alpha
+    return jax.nn.relu(1.0 - alpha * o * y) / alpha
 
 
 def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckpt_loss, ckpt_grad_stats, ckpt_kernels, max_wall, max_step, **args):
@@ -92,7 +100,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
 
     loss = partial(hinge, alpha)
 
-    jit_sgd = jax.jit(partial(sgd, f, loss, bs, dt))
+    jit_sgd = jax.jit(partial(sgd_n, f, loss, bs, dt))
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
 
     @jax.jit
@@ -114,11 +122,14 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
     wall_ckpt = 0
     save_step = 0
     t = 0
-    for step in count():
+    step = 0
+
+    for _ in count():
 
         if step >= save_step:
+            key_batch.block_until_ready()
             wckpt = time.perf_counter()
-            save_step += ckpt_factor * step
+            save_step += 1 + int(ckpt_factor * step)
 
             save = False
             stop = False
@@ -206,24 +217,28 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
             if stop:
                 return
 
-        key_batch, w = jit_sgd(key_batch, w, out0tr, xtr, ytr)
-        t += dt
+        num_step = save_step - step
+        key_batch, w = jit_sgd(key_batch, num_step, w, out0tr, xtr, ytr)
+        t += dt * num_step
+        step += num_step
 
 
 def execute(arch, h, L, act, seed_init, **args):
     print('device', jnp.ones(3).device_buffer.device(), 'dtype', jnp.ones(3).dtype, flush=True)
 
     if act == 'silu':
-        act = nn.silu
+        act = jax.nn.silu
     if act == 'gelu':
-        act = nn.gelu
+        act = jax.nn.gelu
     if act == 'relu':
-        act = nn.relu
+        act = jax.nn.relu
 
     act = normalize_act(act)
 
     if arch == 'mlp':
-        model = MLP([h] * L, act)
+        model = hk.without_apply_rng(hk.transform(
+            lambda x: mlp([h] * L, act, x)
+        ))
 
     xtr, xte, ytr, yte = dataset(**args)
     print('dataset generated', flush=True)
