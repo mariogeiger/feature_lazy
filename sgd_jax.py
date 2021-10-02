@@ -11,6 +11,7 @@ import haiku as hk
 import jax
 import jax.numpy as jnp
 import numpy as np
+import tensorflow_datasets as tfds
 
 
 def normalize_act(phi):
@@ -25,6 +26,8 @@ def normalize_act(phi):
 
 
 def mlp(features, phi, x):
+    assert x.ndim == 1 + 1
+
     for feat in features:
         d = hk.Linear(
             feat,
@@ -39,6 +42,63 @@ def mlp(features, phi, x):
         w_init=hk.initializers.RandomNormal()
     )
     x = d(x) / x.shape[-1]
+    return x[..., 0]
+
+
+def mnas(h, act, x):
+    assert x.ndim == 1 + 2 + 1
+
+    def conv2d(c, k, s, x):
+        return hk.Conv2D(
+            output_channels=c,
+            kernel_shape=k,
+            stride=s,
+            with_bias=False,
+            w_init=hk.initializers.RandomNormal(),
+        )(x) / (k * x.shape[-1]**0.5)
+
+    def conv2dg(k, s, x):
+        return hk.Conv2D(
+            output_channels=x.shape[-1],
+            kernel_shape=k,
+            stride=s,
+            feature_group_count=x.shape[-1],
+            with_bias=False,
+            w_init=hk.initializers.RandomNormal(),
+        )(x) / (k)
+
+    x = act(conv2d(round(4 * h), 5, 2, x))
+    x = act(conv2dg(5, 1, x))
+    x = act(conv2d(round(2 * h), 1, 1, x))
+
+    def inverted_residual(out_chs, k, s, x):
+        in_chs = x.shape[-1]
+        mid_chs = round(in_chs * 3.0)
+
+        residual = x
+        x = act(conv2d(mid_chs, 1, 1, x))
+        x = act(conv2dg(k, s, x))
+        x = conv2d(out_chs, 1, 1, x)
+
+        if residual.shape == x.shape:
+            x = (x + residual) / 2**0.5
+        else:
+            x = act(x)
+        return x
+
+    x = inverted_residual(round(h), 5, 2, x)
+    x = inverted_residual(round(h), 5, 1, x)
+    x = inverted_residual(round(3 * h), 5, 2, x)
+    x = inverted_residual(round(3 * h), 5, 1, x)
+
+    x = act(conv2d(round(20 * h), 1, 1, x))
+
+    x = jnp.mean(x, axis=(1, 2))
+    x = hk.Linear(
+        output_size=1,
+        with_bias=False,
+        w_init=hk.initializers.RandomNormal(),
+    )(x) / (x.shape[-1])
     return x[..., 0]
 
 
@@ -61,18 +121,38 @@ def mean_var_grad(f, loss, w, out0, x, y):
 
 
 def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
-    xtr = jax.random.normal(jax.random.PRNGKey(seed_trainset), (ptr, d))
-    xte = jax.random.normal(jax.random.PRNGKey(seed_testset), (pte, d))
+    if dataset in ['stripe', 'sign']:
+        xtr = jax.random.normal(jax.random.PRNGKey(seed_trainset), (ptr, d))
+        xte = jax.random.normal(jax.random.PRNGKey(seed_testset), (pte, d))
 
-    if dataset == 'stripe':
-        def y(x):
-            return 2 * (x[:, 0] > -0.3) * (x[:, 0] < 1.18549) - 1
+        if dataset == 'stripe':
+            def y(x):
+                return 2 * (x[:, 0] > -0.3) * (x[:, 0] < 1.18549) - 1
 
-    elif dataset == 'sign':
-        def y(x):
-            return 2 * (x[:, 0] > 0) - 1
+        elif dataset == 'sign':
+            def y(x):
+                return 2 * (x[:, 0] > 0) - 1
 
-    return xtr, xte, y(xtr), y(xte)
+        return xtr, xte, y(xtr), y(xte)
+
+    ds = tfds.load(dataset, split='train+test')
+    ds = ds.shuffle(len(ds), seed=0, reshuffle_each_iteration=False)
+
+    def x(images):
+        return jnp.array(images).astype(jnp.float32) / 255 * 1.87
+
+    def y(labels):
+        return (jnp.array(labels) % 2) * 2.0 - 1.0
+
+    dtr = ds.take(ptr)
+    dtr = next(dtr.batch(len(dtr)).as_numpy_iterator())
+    xtr, ytr = x(dtr['image']), y(dtr['label'])
+
+    dte = ds.skip(ptr).take(pte)
+    dte = next(dte.batch(len(dte)).as_numpy_iterator())
+    xte, yte = x(dte['image']), y(dte['label'])
+
+    return xtr, xte, ytr, yte
 
 
 def sgd(f, loss, bs, dt, key, w, out0, xtr, ytr):
@@ -235,13 +315,23 @@ def execute(arch, h, L, act, seed_init, **args):
 
     act = normalize_act(act)
 
+    xtr, xte, ytr, yte = dataset(**args)
+    print('dataset generated', flush=True)
+
     if arch == 'mlp':
         model = hk.without_apply_rng(hk.transform(
             lambda x: mlp([h] * L, act, x)
         ))
 
-    xtr, xte, ytr, yte = dataset(**args)
-    print('dataset generated', flush=True)
+        xtr = xtr.reshape(xtr.shape[0], -1)
+        xte = xte.reshape(xte.shape[0], -1)
+
+    if arch == 'mnas':
+        model = hk.without_apply_rng(hk.transform(
+            lambda x: mnas(h, act, x)
+        ))
+
+    print(f'xtr.shape={xtr.shape} xte.shape={xte.shape}', flush=True)
 
     w = model.init(jax.random.PRNGKey(seed_init), xtr)
     print('network initialized', flush=True)
