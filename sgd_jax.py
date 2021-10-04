@@ -135,22 +135,26 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
 
         return xtr, xte, y(xtr), y(xte)
 
-    ds = tfds.load(dataset, split='train+test')
-    ds = ds.shuffle(len(ds), seed=0, reshuffle_each_iteration=False)
+    if dataset == 'cifar_animal':
+        ds = tfds.load("cifar10", split='train+test')
+        ds = ds.shuffle(len(ds), seed=0, reshuffle_each_iteration=False)
 
-    def x(images):
-        return jnp.array(images).astype(jnp.float32) / 255 * 1.87
+        def x(images):
+            return jnp.array(images).astype(jnp.float32) / 255 * 1.87
 
-    def y(labels):
-        return (jnp.array(labels) % 2) * 2.0 - 1.0
+        def y(labels):
+            return jnp.array([
+                -1.0 if y in [0, 1, 8, 9] else 1.0
+                for y in labels
+            ])
 
-    dtr = ds.take(ptr)
-    dtr = next(dtr.batch(len(dtr)).as_numpy_iterator())
-    xtr, ytr = x(dtr['image']), y(dtr['label'])
+        dtr = ds.take(ptr)
+        dtr = next(dtr.batch(len(dtr)).as_numpy_iterator())
+        xtr, ytr = x(dtr['image']), y(dtr['label'])
 
-    dte = ds.skip(ptr).take(pte)
-    dte = next(dte.batch(len(dte)).as_numpy_iterator())
-    xte, yte = x(dte['image']), y(dte['label'])
+        dte = ds.skip(ptr).take(pte)
+        dte = next(dte.batch(len(dte)).as_numpy_iterator())
+        xte, yte = x(dte['image']), y(dte['label'])
 
     return xtr, xte, ytr, yte
 
@@ -175,7 +179,11 @@ def hinge(alpha, o, y):
     return jax.nn.relu(1.0 - alpha * o * y) / alpha
 
 
-def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckpt_loss, ckpt_grad_stats, ckpt_kernels, max_wall, max_step, **args):
+def train(
+        f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha,
+        ckpt_cste, ckpt_factor, ckpt_loss, ckpt_grad_stats, ckpt_kernels,
+        max_wall, max_step, **args
+    ):
     key_batch = jax.random.PRNGKey(seed_batch)
 
     loss = partial(hinge, alpha)
@@ -185,11 +193,15 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
 
     @jax.jit
     def jit_le(w, out0, x, y):
-        pred = f(w, x) - out0
+        out = jnp.concatenate([
+            f(w, x[i: i + 1024])
+            for i in range(0, x.shape[0], 1024)
+        ])
+        pred = out - out0
         return pred, jnp.mean(loss(pred, y)), jnp.mean(pred * y <= 0)
 
-    out0tr = f(w0, xtr)
-    out0te = f(w0, xte)
+    out0tr = jnp.concatenate([f(w0, xtr[i: i + 1024]) for i in range(0, xtr.shape[0], 1024)])
+    out0te = jnp.concatenate([f(w0, xte[i: i + 1024]) for i in range(0, xte.shape[0], 1024)])
     _, l0, _ = jit_le(w0, out0tr, xtr, ytr)
 
     _, _, _, _, kernel_tr0 = jit_mean_var_grad(w0, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
@@ -200,6 +212,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
     wall0 = time.perf_counter()
     wall_print = 0
     wall_ckpt = 0
+    wall_save = 0
     save_step = 0
     t = 0
     step = 0
@@ -209,7 +222,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
         if step >= save_step:
             key_batch.block_until_ready()
             wckpt = time.perf_counter()
-            save_step += 1 + int(ckpt_factor * step)
+            save_step += ckpt_cste + int(ckpt_factor * step)
 
             save = False
             stop = False
@@ -217,6 +230,9 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
             pred, l, err = jit_le(w, out0tr, xtr, ytr)
 
             if l == 0.0:
+                stop = True
+
+            if not jnp.isfinite(l):
                 stop = True
 
             if time.perf_counter() - wall0 > max_wall:
@@ -235,6 +251,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                 save = True
 
             if save:
+                wsave = time.perf_counter()
                 mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
 
                 train = dict(
@@ -283,7 +300,10 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     wall_print = time.perf_counter()
 
                     print((
-                        f"[{step} t={t:.2e} w={state['wall']:.0f} ckpt={100 * wall_ckpt / state['wall']:.0f}%] "
+                        f"[{step} t={t:.2e} w={state['wall']:.0f} "
+                        f"s={len(dynamics)} "
+                        f"ckpt={100 * (wall_ckpt - wall_save) / state['wall']:.0f}%+"
+                        f"{100 * wall_save / state['wall']:.0f}%] "
                         f"[train aL={alpha * state['train']['loss']:.2e} err={state['train']['err']:.2f}] "
                         f"[test aL={alpha * state['test']['loss']:.2e} err={state['test']['err']:.2f}]"
                     ), flush=True)
@@ -291,6 +311,8 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
                     yield dynamics
 
                 del state
+
+                wall_save += time.perf_counter() - wsave
 
             wall_ckpt += time.perf_counter() - wckpt
 
@@ -304,7 +326,7 @@ def train(f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, ckpt_factor, ckp
 
 
 def execute(arch, h, L, act, seed_init, **args):
-    print('device', jnp.ones(3).device_buffer.device(), 'dtype', jnp.ones(3).dtype, flush=True)
+    print(f"device={jnp.ones(3).device_buffer.device()} dtype={jnp.ones(3).dtype}", flush=True)
 
     if act == 'silu':
         act = jax.nn.silu
@@ -357,7 +379,7 @@ def main():
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--ptr", type=int, required=True)
     parser.add_argument("--pte", type=int, required=True)
-    parser.add_argument("--d", type=int, required=True)
+    parser.add_argument("--d", type=int)
 
     parser.add_argument("--arch", type=str, required=True)
     parser.add_argument("--act", type=str, required=True)
@@ -374,7 +396,8 @@ def main():
     parser.add_argument("--max_wall", type=float, required=True)
     parser.add_argument("--max_step", type=float, default=np.inf)
 
-    parser.add_argument("--ckpt_factor", type=float, default=2e-3)
+    parser.add_argument("--ckpt_cste", type=int, default=16)
+    parser.add_argument("--ckpt_factor", type=float, default=9e-3)
     parser.add_argument("--ckpt_loss", type=float, default=1e-4)
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
     parser.add_argument("--ckpt_kernels", type=int, default=0)
