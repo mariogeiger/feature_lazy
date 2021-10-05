@@ -180,10 +180,10 @@ def hinge(alpha, o, y):
 
 
 def train(
-        f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha,
-        ckpt_cste, ckpt_factor, ckpt_loss, ckpt_grad_stats, ckpt_kernels,
-        max_wall, max_step, **args
-    ):
+    f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha,
+    ckpt_step, ckpt_tau, ckpt_loss, ckpt_grad_stats, ckpt_kernels,
+    max_wall, max_step, **args
+):
     key_batch = jax.random.PRNGKey(seed_batch)
 
     loss = partial(hinge, alpha)
@@ -222,7 +222,7 @@ def train(
         if step >= save_step:
             key_batch.block_until_ready()
             wckpt = time.perf_counter()
-            save_step += ckpt_cste + int(ckpt_factor * step)
+            save_step += 1 + int(ckpt_step * (1.0 - np.exp(-step / ckpt_tau)))
 
             save = False
             stop = False
@@ -361,7 +361,13 @@ def execute(arch, h, L, act, seed_init, **args):
     for d in train(model.apply, w, xtr, xte, ytr, yte, **args):
         yield dict(
             dynamics=d,
+            finished=False,
         )
+
+    yield dict(
+        dynamics=d,
+        finished=True,
+    )
 
 
 def main():
@@ -396,8 +402,8 @@ def main():
     parser.add_argument("--max_wall", type=float, required=True)
     parser.add_argument("--max_step", type=float, default=np.inf)
 
-    parser.add_argument("--ckpt_cste", type=int, default=16)
-    parser.add_argument("--ckpt_factor", type=float, default=9e-3)
+    parser.add_argument("--ckpt_step", type=int, default=300)
+    parser.add_argument("--ckpt_tau", type=float, default=1e4)
     parser.add_argument("--ckpt_loss", type=float, default=1e-4)
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
     parser.add_argument("--ckpt_kernels", type=int, default=0)
