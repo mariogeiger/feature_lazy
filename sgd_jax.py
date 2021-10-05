@@ -165,14 +165,23 @@ def sgd(f, loss, bs, dt, key, w, out0, xtr, ytr):
     x = xtr[i]
     y = ytr[i]
     o0 = out0[i]
-    g = jax.grad(lambda w: jnp.mean(loss(f(w, x) - o0, y)))(w)
+    lo, g = jax.value_and_grad(lambda w: jnp.mean(loss(f(w, x) - o0, y)))(w)
     w = jax.tree_multimap(lambda w, g: w - dt * g, w, g)
-    return key, w
+    return key, w, lo
 
 
-def sgd_n(f, loss, bs, dt, key, num, w, out0, xtr, ytr):
-    fun = lambda _i, key_w: sgd(f, loss, bs, dt, key_w[0], key_w[1], out0, xtr, ytr)
-    return jax.lax.fori_loop(0, num, fun, (key, w))
+def sgd_until(f, loss, bs, dt, key, w, out0, xtr, ytr, last_loss, target_loss, num):
+    def cond(x):
+        _key, _w, last_loss, i = x
+        return (target_loss < last_loss) & (i < num) & jnp.isfinite(last_loss)
+
+    def body(x):
+        key, w, last_loss, i = x
+        key, w, batch_loss = sgd(f, loss, bs, dt, key, w, out0, xtr, ytr)
+        current_loss = ((xtr.shape[0] - bs) * last_loss + bs * batch_loss) / xtr.shape[0]
+        return key, w, current_loss, i + 1
+
+    return jax.lax.while_loop(cond, body, (key, w, last_loss, 0))
 
 
 def hinge(alpha, o, y):
@@ -181,14 +190,14 @@ def hinge(alpha, o, y):
 
 def train(
     f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha,
-    ckpt_step, ckpt_tau, ckpt_loss, ckpt_grad_stats, ckpt_kernels,
+    ckpt_step, ckpt_grad_stats, ckpt_kernels,
     max_wall, max_step, **args
 ):
     key_batch = jax.random.PRNGKey(seed_batch)
 
     loss = partial(hinge, alpha)
 
-    jit_sgd = jax.jit(partial(sgd_n, f, loss, bs, dt))
+    jit_sgd = jax.jit(partial(sgd_until, f, loss, bs, dt))
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
 
     @jax.jit
@@ -202,127 +211,128 @@ def train(
 
     out0tr = jnp.concatenate([f(w0, xtr[i: i + 1024]) for i in range(0, xtr.shape[0], 1024)])
     out0te = jnp.concatenate([f(w0, xte[i: i + 1024]) for i in range(0, xte.shape[0], 1024)])
-    _, l0, _ = jit_le(w0, out0tr, xtr, ytr)
+    pred, l0, _ = jit_le(w0, out0tr, xtr, ytr)
 
     _, _, _, _, kernel_tr0 = jit_mean_var_grad(w0, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
     _, _, _, _, kernel_te0 = jit_mean_var_grad(w0, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
+
+    ckpt_loss = 2.0**jnp.arange(-20, -9, 0.5)
+    ckpt_loss = l0 * jnp.concatenate([ckpt_loss, jnp.arange(2**-9, 1, 2**-9), 1 - ckpt_loss[::-1]])
+    target_loss = l0
+    current_loss = l0
 
     dynamics = []
     w = w0
     wall0 = time.perf_counter()
     wall_print = 0
     wall_ckpt = 0
-    wall_save = 0
-    save_step = 0
     t = 0
     step = 0
 
     for _ in count():
 
-        if step >= save_step:
-            key_batch.block_until_ready()
-            wckpt = time.perf_counter()
-            save_step += 1 + int(ckpt_step * (1.0 - np.exp(-step / ckpt_tau)))
-
-            save = False
-            stop = False
+        total_step = 0
+        while True:
+            key_batch, w, current_loss, num_step = jit_sgd(key_batch, w, out0tr, xtr, ytr, current_loss, target_loss, ckpt_step)
+            t += dt * num_step
+            step += num_step
+            total_step += num_step
 
             pred, l, err = jit_le(w, out0tr, xtr, ytr)
+            current_loss = l
 
-            if l == 0.0:
-                stop = True
+            if ckpt_step <= total_step:
+                break
 
-            if not jnp.isfinite(l):
-                stop = True
+            if current_loss <= target_loss:
+                if ckpt_loss[0] < current_loss:
+                    target_loss = ckpt_loss[ckpt_loss < current_loss][-1]
+                else:
+                    target_loss = 0.0
+                break
 
-            if time.perf_counter() - wall0 > max_wall:
-                stop = True
+        key_batch.block_until_ready()
+        wckpt = time.perf_counter()
 
-            if step > max_step:
-                stop = True
+        stop = False
 
-            if step == 0:
-                save = True
+        if l == 0.0:
+            stop = True
 
-            if l < (1 - ckpt_loss) * l0:
-                save = True
+        if not jnp.isfinite(l):
+            stop = True
 
-            if stop:
-                save = True
+        if time.perf_counter() - wall0 > max_wall:
+            stop = True
 
-            if save:
-                wsave = time.perf_counter()
-                mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
+        if step > max_step:
+            stop = True
 
-                train = dict(
-                    loss=float(l),
-                    err=float(err),
-                    grad_f_norm=float(mean_f),
-                    grad_f_var=float(var_f),
-                    grad_l_norm=float(mean_l),
-                    grad_l_var=float(var_l),
-                    pred=(pred if stop else None),
-                    label=(ytr if stop else None),
-                    kernel=(np.asarray(kernel) if ckpt_kernels else None),
-                    kernel_change=float(jnp.mean((kernel - kernel_tr0)**2)),
-                )
-                del l, err
+        mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
 
-                mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
-                pred, l, err = jit_le(w, out0te, xte, yte)
+        train = dict(
+            loss=float(l),
+            err=float(err),
+            mind=float(jnp.min(pred * ytr)),
+            grad_f_norm=float(mean_f),
+            grad_f_var=float(var_f),
+            grad_l_norm=float(mean_l),
+            grad_l_var=float(var_l),
+            pred=(pred if stop else None),
+            label=(ytr if stop else None),
+            kernel=(np.asarray(kernel) if ckpt_kernels else None),
+            kernel_change=float(jnp.mean((kernel - kernel_tr0)**2)),
+        )
+        del l, err
 
-                test = dict(
-                    loss=float(l),
-                    err=float(err),
-                    grad_f_norm=float(mean_f),
-                    grad_f_var=float(var_f),
-                    grad_l_norm=float(mean_l),
-                    grad_l_var=float(var_l),
-                    pred=(pred if stop else None),
-                    label=(yte if stop else None),
-                    kernel=(np.asarray(kernel) if ckpt_kernels else None),
-                    kernel_change=float(jnp.mean((kernel - kernel_te0)**2)),
-                )
-                del l, err
+        mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
+        pred, l, err = jit_le(w, out0te, xte, yte)
 
-                state = dict(
-                    t=t,
-                    step=step,
-                    wall=time.perf_counter() - wall0,
-                    weights_norm=[float(jnp.sum(x**2)) for x in jax.tree_leaves(w)],
-                    delta_weights_norm=[float(jnp.sum((x - x0)**2)) for x, x0 in zip(jax.tree_leaves(w), jax.tree_leaves(w0))],
-                    train=train,
-                    test=test,
-                )
-                dynamics.append(state)
+        test = dict(
+            loss=float(l),
+            err=float(err),
+            mind=float(jnp.min(pred * yte)),
+            grad_f_norm=float(mean_f),
+            grad_f_var=float(var_f),
+            grad_l_norm=float(mean_l),
+            grad_l_var=float(var_l),
+            pred=(pred if stop else None),
+            label=(yte if stop else None),
+            kernel=(np.asarray(kernel) if ckpt_kernels else None),
+            kernel_change=float(jnp.mean((kernel - kernel_te0)**2)),
+        )
+        del l, err
 
-                if time.perf_counter() - wall_print > 1.0 or stop:
-                    wall_print = time.perf_counter()
+        state = dict(
+            t=t,
+            step=step,
+            wall=time.perf_counter() - wall0,
+            weights_norm=[float(jnp.sum(x**2)) for x in jax.tree_leaves(w)],
+            delta_weights_norm=[float(jnp.sum((x - x0)**2)) for x, x0 in zip(jax.tree_leaves(w), jax.tree_leaves(w0))],
+            train=train,
+            test=test,
+        )
+        dynamics.append(state)
 
-                    print((
-                        f"[{step} t={t:.2e} w={state['wall']:.0f} "
-                        f"s={len(dynamics)} "
-                        f"ckpt={100 * (wall_ckpt - wall_save) / state['wall']:.0f}%+"
-                        f"{100 * wall_save / state['wall']:.0f}%] "
-                        f"[train aL={alpha * state['train']['loss']:.2e} err={state['train']['err']:.2f}] "
-                        f"[test aL={alpha * state['test']['loss']:.2e} err={state['test']['err']:.2f}]"
-                    ), flush=True)
+        if time.perf_counter() - wall_print > 0.1 or stop:
+            wall_print = time.perf_counter()
 
-                    yield dynamics
+            print((
+                f"[{step} t={t:.2e} w={state['wall']:.0f} "
+                f"s={len(dynamics)} "
+                f"ckpt={100 * wall_ckpt / state['wall']:.0f}%] "
+                f"[train aL={alpha * state['train']['loss']:.2e} err={state['train']['err']:.2f} mind={alpha * state['train']['mind']:.2f}] "
+                f"[test aL={alpha * state['test']['loss']:.2e} err={state['test']['err']:.2f}]"
+            ), flush=True)
 
-                del state
+            yield dynamics
 
-                wall_save += time.perf_counter() - wsave
+        del state
 
-            wall_ckpt += time.perf_counter() - wckpt
+        wall_ckpt += time.perf_counter() - wckpt
 
-            if stop:
-                return
-
-        num_step = save_step - step
-        key_batch, w = jit_sgd(key_batch, num_step, w, out0tr, xtr, ytr)
-        t += dt * num_step
-        step += num_step
+        if stop:
+            return
 
 
 def execute(arch, h, L, act, seed_init, **args):
@@ -402,14 +412,38 @@ def main():
     parser.add_argument("--max_wall", type=float, required=True)
     parser.add_argument("--max_step", type=float, default=np.inf)
 
-    parser.add_argument("--ckpt_step", type=int, default=300)
-    parser.add_argument("--ckpt_tau", type=float, default=1e4)
-    parser.add_argument("--ckpt_loss", type=float, default=1e-4)
+    parser.add_argument("--ckpt_step", type=int, default=4096)
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
     parser.add_argument("--ckpt_kernels", type=int, default=0)
 
     parser.add_argument("--output", type=str, required=True)
     args = parser.parse_args().__dict__
+
+    # args = dict(
+    #     dataset="stripe",
+    #     ptr=1024,
+    #     pte=1024,
+    #     arch="mlp",
+    #     act="gelu",
+    #     act_beta=1.0,
+    #     h=32,
+    #     alpha=1e-6,
+    #     bs=16,
+    #     max_wall=120,
+    #     max_step=np.inf,
+    #     output="test.pk",
+    #     d=16,
+    #     dt=0.125,
+    #     temp=None,
+    #     L=2,
+    #     seed_init=0,
+    #     seed_batch=0,
+    #     seed_trainset=-1,
+    #     seed_testset=-2,
+    #     ckpt_step=4096,
+    #     ckpt_grad_stats=0,
+    #     ckpt_kernels=0,
+    # )
 
     # dt and derivatives
     assert (args['dt'] is not None) + (args['temp'] is not None) == 1
