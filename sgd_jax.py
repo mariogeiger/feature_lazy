@@ -241,7 +241,7 @@ def train(
             pred, l, err = jit_le(w, out0tr, xtr, ytr)
             current_loss = l
 
-            if ckpt_step <= total_step:
+            if ckpt_step <= total_step or (not jnp.isfinite(current_loss)):
                 break
 
             if current_loss <= target_loss:
@@ -272,6 +272,7 @@ def train(
 
         train = dict(
             loss=float(l),
+            aloss=float(alpha * l),
             err=float(err),
             mind=float(jnp.min(pred * ytr)),
             grad_f_norm=float(mean_f),
@@ -290,6 +291,7 @@ def train(
 
         test = dict(
             loss=float(l),
+            aloss=float(alpha * l),
             err=float(err),
             mind=float(jnp.min(pred * yte)),
             grad_f_norm=float(mean_f),
