@@ -207,7 +207,7 @@ def train(
             for i in range(0, x.shape[0], 1024)
         ])
         pred = out - out0
-        return pred, jnp.mean(loss(pred, y)), jnp.mean(pred * y <= 0)
+        return pred, jnp.mean(loss(pred, y)), jnp.mean((pred * y <= 0 | ~jnp.isfinite(pred)))
 
     out0tr = jnp.concatenate([f(w0, xtr[i: i + 1024]) for i in range(0, xtr.shape[0], 1024)])
     out0te = jnp.concatenate([f(w0, xte[i: i + 1024]) for i in range(0, xte.shape[0], 1024)])
@@ -275,6 +275,7 @@ def train(
             aloss=float(alpha * l),
             err=float(err),
             mind=float(jnp.min(pred * ytr)),
+            nd=int(jnp.sum(alpha * pred * ytr < 1.0)),
             grad_f_norm=float(mean_f),
             grad_f_var=float(var_f),
             grad_l_norm=float(mean_l),
@@ -294,6 +295,7 @@ def train(
             aloss=float(alpha * l),
             err=float(err),
             mind=float(jnp.min(pred * yte)),
+            nd=int(jnp.sum(alpha * pred * yte < 1.0)),
             grad_f_norm=float(mean_f),
             grad_f_var=float(var_f),
             grad_l_norm=float(mean_l),
@@ -372,12 +374,12 @@ def execute(arch, h, L, act, seed_init, **args):
 
     for d in train(model.apply, w, xtr, xte, ytr, yte, **args):
         yield dict(
-            dynamics=d,
+            sgd=dict(dynamics=d),
             finished=False,
         )
 
     yield dict(
-        dynamics=d,
+        sgd=dict(dynamics=d),
         finished=True,
     )
 
@@ -420,32 +422,6 @@ def main():
 
     parser.add_argument("--output", type=str, required=True)
     args = parser.parse_args().__dict__
-
-    # args = dict(
-    #     dataset="stripe",
-    #     ptr=1024,
-    #     pte=1024,
-    #     arch="mlp",
-    #     act="gelu",
-    #     act_beta=1.0,
-    #     h=32,
-    #     alpha=1e-6,
-    #     bs=16,
-    #     max_wall=120,
-    #     max_step=np.inf,
-    #     output="test.pk",
-    #     d=16,
-    #     dt=0.125,
-    #     temp=None,
-    #     L=2,
-    #     seed_init=0,
-    #     seed_batch=0,
-    #     seed_trainset=-1,
-    #     seed_testset=-2,
-    #     ckpt_step=4096,
-    #     ckpt_grad_stats=0,
-    #     ckpt_kernels=0,
-    # )
 
     # dt and derivatives
     assert (args['dt'] is not None) + (args['temp'] is not None) == 1
