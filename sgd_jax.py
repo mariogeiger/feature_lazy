@@ -137,7 +137,13 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
 
     if dataset == 'cifar_animal':
         ds = tfds.load("cifar10", split='train+test')
-        ds = ds.shuffle(len(ds), seed=0, reshuffle_each_iteration=False)
+
+        ds = ds.shuffle(len(ds), seed=seed_trainset, reshuffle_each_iteration=False)
+        dtr = ds.take(ptr)
+
+        dte = ds.skip(ptr)
+        dte = dte.shuffle(len(dte), seed=seed_testset, reshuffle_each_iteration=False)
+        dte = dte.take(pte)
 
         def x(images):
             return jnp.array(images).astype(jnp.float32) / 255 * 1.87
@@ -148,11 +154,9 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
                 for y in labels
             ])
 
-        dtr = ds.take(ptr)
         dtr = next(dtr.batch(len(dtr)).as_numpy_iterator())
         xtr, ytr = x(dtr['image']), y(dtr['label'])
 
-        dte = ds.skip(ptr).take(pte)
         dte = next(dte.batch(len(dte)).as_numpy_iterator())
         xte, yte = x(dte['image']), y(dte['label'])
 
@@ -184,8 +188,8 @@ def sgd_until(f, loss, bs, dt, key, w, out0, xtr, ytr, last_loss, target_loss, n
     return jax.lax.while_loop(cond, body, (key, w, last_loss, 0))
 
 
-def hinge(alpha, o, y):
-    return jax.nn.relu(1.0 - alpha * o * y) / alpha
+def hinge(o, y):
+    return jax.nn.relu(1.0 - o * y)
 
 
 def train(
@@ -195,7 +199,7 @@ def train(
 ):
     key_batch = jax.random.PRNGKey(seed_batch)
 
-    loss = partial(hinge, alpha)
+    loss = lambda o, y: hinge(alpha * o, y) / alpha
 
     jit_sgd = jax.jit(partial(sgd_until, f, loss, bs, dt))
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
@@ -218,8 +222,13 @@ def train(
 
     ckpt_loss = 2.0**jnp.arange(-20, -9, 0.5)
     ckpt_loss = l0 * jnp.concatenate([ckpt_loss, jnp.arange(2**-9, 1, 2**-9), 1 - ckpt_loss[::-1]])
+
+    ckpt_loss_grad = 2.0**jnp.arange(-20, -2, 0.5)
+    ckpt_loss_grad = jnp.concatenate([ckpt_loss_grad, jnp.arange(2**-2, 1.0, 2**-4)])
+
     target_loss = l0
     current_loss = l0
+    target_loss_for_ckpt_grad = l0
 
     dynamics = []
     w = w0
@@ -268,42 +277,56 @@ def train(
         if step > max_step:
             stop = True
 
-        mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
+        save_grad = False
+        if ckpt_grad_stats and current_loss <= target_loss_for_ckpt_grad:
+            save_grad = True
+            if ckpt_loss_grad[0] < current_loss:
+                target_loss_for_ckpt_grad = ckpt_loss_grad[ckpt_loss_grad < current_loss][-1]
+            else:
+                target_loss_for_ckpt_grad = 0.0
+
+        mean_f, var_f, mean_l, var_l, kernel, kernel_change = [None] * 6
+        if save_grad:
+            mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
+            kernel_change = jnp.mean((kernel - kernel_tr0)**2)
 
         train = dict(
-            loss=float(l),
-            aloss=float(alpha * l),
-            err=float(err),
-            mind=float(jnp.min(pred * ytr)),
-            nd=int(jnp.sum(alpha * pred * ytr < 1.0)),
-            grad_f_norm=float(mean_f),
-            grad_f_var=float(var_f),
-            grad_l_norm=float(mean_l),
-            grad_l_var=float(var_l),
+            loss=l,
+            aloss=alpha * l,
+            err=err,
+            mind=jnp.min(pred * ytr),
+            nd=jnp.sum(alpha * pred * ytr < 1.0),
+            grad_f_norm=mean_f,
+            grad_f_var=var_f,
+            grad_l_norm=mean_l,
+            grad_l_var=var_l,
             pred=(pred if stop else None),
             label=(ytr if stop else None),
-            kernel=(np.asarray(kernel) if ckpt_kernels else None),
-            kernel_change=float(jnp.mean((kernel - kernel_tr0)**2)),
+            kernel=(kernel if ckpt_kernels else None),
+            kernel_change=kernel_change,
         )
         del l, err
 
-        mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
+        if save_grad:
+            mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
+            kernel_change = jnp.mean((kernel - kernel_te0)**2)
+
         pred, l, err = jit_le(w, out0te, xte, yte)
 
         test = dict(
-            loss=float(l),
-            aloss=float(alpha * l),
-            err=float(err),
-            mind=float(jnp.min(pred * yte)),
-            nd=int(jnp.sum(alpha * pred * yte < 1.0)),
-            grad_f_norm=float(mean_f),
-            grad_f_var=float(var_f),
-            grad_l_norm=float(mean_l),
-            grad_l_var=float(var_l),
+            loss=l,
+            aloss=alpha * l,
+            err=err,
+            mind=jnp.min(pred * yte),
+            nd=jnp.sum(alpha * pred * yte < 1.0),
+            grad_f_norm=mean_f,
+            grad_f_var=var_f,
+            grad_l_norm=mean_l,
+            grad_l_var=var_l,
             pred=(pred if stop else None),
             label=(yte if stop else None),
-            kernel=(np.asarray(kernel) if ckpt_kernels else None),
-            kernel_change=float(jnp.mean((kernel - kernel_te0)**2)),
+            kernel=(kernel if ckpt_kernels else None),
+            kernel_change=kernel_change,
         )
         del l, err
 
@@ -311,12 +334,12 @@ def train(
             t=t,
             step=step,
             wall=time.perf_counter() - wall0,
-            weights_norm=[float(jnp.sum(x**2)) for x in jax.tree_leaves(w)],
-            delta_weights_norm=[float(jnp.sum((x - x0)**2)) for x, x0 in zip(jax.tree_leaves(w), jax.tree_leaves(w0))],
+            weights_norm=[jnp.sum(x**2) for x in jax.tree_leaves(w)],
+            delta_weights_norm=[jnp.sum((x - x0)**2) for x, x0 in zip(jax.tree_leaves(w), jax.tree_leaves(w0))],
             train=train,
             test=test,
         )
-        dynamics.append(state)
+        dynamics.append(jax.tree_map(np.asarray, state))
 
         if time.perf_counter() - wall_print > 0.1 or stop:
             wall_print = time.perf_counter()
