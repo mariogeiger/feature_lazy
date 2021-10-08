@@ -135,15 +135,20 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
 
         return xtr, xte, y(xtr), y(xte)
 
+    if dataset == 'mnist_parity':
+        ds = tfds.load("mnist", split='train+test')
+
+        def x(images):
+            return jnp.array(images).astype(jnp.float32) / 255 * 3.0
+
+        def y(labels):
+            return jnp.array([
+                -1.0 if y % 2 == 1 else 1.0
+                for y in labels
+            ])
+
     if dataset == 'cifar_animal':
         ds = tfds.load("cifar10", split='train+test')
-
-        ds = ds.shuffle(len(ds), seed=seed_trainset, reshuffle_each_iteration=False)
-        dtr = ds.take(ptr)
-
-        dte = ds.skip(ptr)
-        dte = dte.shuffle(len(dte), seed=seed_testset, reshuffle_each_iteration=False)
-        dte = dte.take(pte)
 
         def x(images):
             return jnp.array(images).astype(jnp.float32) / 255 * 1.87
@@ -154,11 +159,18 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
                 for y in labels
             ])
 
-        dtr = next(dtr.batch(len(dtr)).as_numpy_iterator())
-        xtr, ytr = x(dtr['image']), y(dtr['label'])
+    ds = ds.shuffle(len(ds), seed=seed_trainset, reshuffle_each_iteration=False)
+    dtr = ds.take(ptr)
 
-        dte = next(dte.batch(len(dte)).as_numpy_iterator())
-        xte, yte = x(dte['image']), y(dte['label'])
+    dte = ds.skip(ptr)
+    dte = dte.shuffle(len(dte), seed=seed_testset, reshuffle_each_iteration=False)
+    dte = dte.take(pte)
+
+    dtr = next(dtr.batch(len(dtr)).as_numpy_iterator())
+    xtr, ytr = x(dtr['image']), y(dtr['label'])
+
+    dte = next(dte.batch(len(dte)).as_numpy_iterator())
+    xte, yte = x(dte['image']), y(dte['label'])
 
     return xtr, xte, ytr, yte
 
