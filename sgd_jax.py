@@ -246,6 +246,7 @@ def train(
     w = w0
     wall0 = time.perf_counter()
     wall_print = 0
+    wall_yield = 0
     wall_ckpt = 0
     t = 0
     step = 0
@@ -364,6 +365,8 @@ def train(
                 f"[test aL={alpha * state['test']['loss']:.2e} err={state['test']['err']:.2f}]"
             ), flush=True)
 
+        if time.perf_counter() - wall_yield > 10.0 or stop:
+            wall_yield = time.perf_counter()
             yield dynamics
 
         del state
