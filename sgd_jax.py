@@ -10,6 +10,7 @@ from itertools import count
 import haiku as hk
 import jax
 import jax.numpy as jnp
+from jax.config import config
 import numpy as np
 import tensorflow_datasets as tfds
 
@@ -458,8 +459,15 @@ def main():
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
     parser.add_argument("--ckpt_kernels", type=int, default=0)
 
+    parser.add_argument("--dtype", type=str, default="f32")
     parser.add_argument("--output", type=str, required=True)
     args = parser.parse_args().__dict__
+
+    if args['dtype'] == "f64":
+        config.update("jax_enable_x64", True)
+    else:
+        config.update("jax_enable_x64", False)
+        assert args['dtype'] == "f32"
 
     # dt and derivatives
     assert (args['dt'] is not None) + (args['temp'] is not None) == 1
