@@ -415,13 +415,20 @@ def execute(arch, h, L, act, seed_init, **args):
     w = model.init(jax.random.PRNGKey(seed_init), xtr)
     print('network initialized', flush=True)
 
+    arch = dict(
+        params_shapes=[p.shape for p in jax.tree_leaves(w)],
+        params_sizes=[p.size for p in jax.tree_leaves(w)],
+    )
+
     for d in train(model.apply, w, xtr, xte, ytr, yte, **args):
         yield dict(
+            arch=arch,
             sgd=dict(dynamics=d),
             finished=False,
         )
 
     yield dict(
+        arch=arch,
         sgd=dict(dynamics=d),
         finished=True,
     )
