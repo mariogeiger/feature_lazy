@@ -303,6 +303,7 @@ def train(
         if save_grad:
             mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
             kernel_change = jnp.mean((kernel - kernel_tr0)**2)
+            kernel_norm = jnp.mean(kernel**2)
 
         train = dict(
             loss=l,
@@ -318,12 +319,14 @@ def train(
             label=(ytr if stop else None),
             kernel=(kernel if ckpt_kernels else None),
             kernel_change=kernel_change,
+            kernel_norm=kernel_norm,
         )
         del l, err
 
         if save_grad:
             mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
             kernel_change = jnp.mean((kernel - kernel_te0)**2)
+            kernel_norm = jnp.mean(kernel**2)
 
         pred, l, err = jit_le(w, out0te, xte, yte)
 
@@ -341,6 +344,7 @@ def train(
             label=(yte if stop else None),
             kernel=(kernel if ckpt_kernels else None),
             kernel_change=kernel_change,
+            kernel_norm=kernel_norm,
         )
         del l, err
 
