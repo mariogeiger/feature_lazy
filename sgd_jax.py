@@ -99,24 +99,6 @@ def mnas(h, act, x):
     return x[..., 0]
 
 
-def mean_var_grad(f, loss, w, out0, x, y):
-    out, j = jax.vmap(jax.value_and_grad(f, 0), (None, 0), 0)(w, x)
-    j = jnp.concatenate([jnp.reshape(x, (x.shape[0], math.prod(x.shape[1:]))) for x in jax.tree_leaves(j)], 1)  # [x, w]
-    # j[i, j] = d f(w, x_i) / d w_j
-    mean_f = jnp.mean(j, 0)
-    var_f = jnp.mean(jnp.sum((j - mean_f)**2, 1))
-
-    # kernel[mu,nu] = sum_j j[mu,j] j[nu,j]
-    kernel = j @ j.T
-
-    dl = jax.vmap(jax.grad(loss, 0), (0, 0), 0)
-    lj = dl(out - out0, y)[:, None] * j
-    mean_l = jnp.mean(lj, 0)
-    var_l = jnp.mean(jnp.sum((lj - mean_l)**2, 1))
-
-    return jnp.sum(mean_f**2), var_f, jnp.sum(mean_l**2), var_l, kernel
-
-
 def dataset(dataset, seed_trainset, seed_testset, ptr, pte, **args):
     if dataset in ['stripe', 'sign']:
         d = args['d']
@@ -171,6 +153,24 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, **args):
     xte, yte = x(dte['image']), y(dte['label'])
 
     return xtr, xte, ytr, yte
+
+
+def mean_var_grad(f, loss, w, out0, x, y):
+    out, j = jax.vmap(jax.value_and_grad(f, 0), (None, 0), 0)(w, x)
+    j = jnp.concatenate([jnp.reshape(x, (x.shape[0], math.prod(x.shape[1:]))) for x in jax.tree_leaves(j)], 1)  # [x, w]
+    # j[i, j] = d f(w, x_i) / d w_j
+    mean_f = jnp.mean(j, 0)
+    var_f = jnp.mean(jnp.sum((j - mean_f)**2, 1))
+
+    # kernel[mu,nu] = sum_j j[mu,j] j[nu,j]
+    kernel = j @ j.T
+
+    dl = jax.vmap(jax.grad(loss, 0), (0, 0), 0)
+    lj = dl(out - out0, y)[:, None] * j
+    mean_l = jnp.mean(lj, 0)
+    var_l = jnp.mean(jnp.sum((lj - mean_l)**2, 1))
+
+    return jnp.sum(mean_f**2), var_f, jnp.sum(mean_l**2), var_l, kernel
 
 
 def sgd(f, loss, bs, dt, key, w, out0, xtr, ytr):
