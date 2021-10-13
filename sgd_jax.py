@@ -27,8 +27,6 @@ def normalize_act(phi):
 
 
 def mlp(features, phi, x):
-    assert x.ndim <= 1 + 1
-
     for feat in features:
         d = hk.Linear(
             feat,
@@ -47,8 +45,6 @@ def mlp(features, phi, x):
 
 
 def mnas(h, act, x):
-    assert x.ndim <= 1 + 2 + 1
-
     def conv2d(c, k, s, x):
         return hk.Conv2D(
             output_channels=c,
