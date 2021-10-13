@@ -206,14 +206,39 @@ def hinge(o, y):
     return jax.nn.relu(1.0 - o * y)
 
 
+def qhinge(o, y):
+    return jax.nn.relu(1.0 - o * y)**2
+
+
+def sus(x):
+    return jnp.where(x > 0.0, jnp.exp(-1.0 / jnp.where(x > 0.0, x, 1.0)), 0.0)
+
+
+def srelu(x):
+    return sus(2.0 * x) * x
+
+
+def shinge(o, y):
+    return srelu(1.0 - o * y)
+
+
 def train(
-    f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha,
+    f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, loss,
     ckpt_step, ckpt_grad_stats, ckpt_kernels,
-    max_wall, max_step, **args
+    max_wall, max_step, mind_stop, **args
 ):
     key_batch = jax.random.PRNGKey(seed_batch)
 
-    loss = lambda o, y: hinge(alpha * o, y) / alpha
+    if loss == "hinge":
+        loss_fun = hinge
+    elif loss == "softhinge":
+        loss_fun = shinge
+    elif loss == "quadhinge":
+        loss_fun = qhinge
+    else:
+        raise ValueError("{loss} is not a valid choice of loss")
+
+    loss = lambda o, y: loss_fun(alpha * o, y) / alpha
 
     jit_sgd = jax.jit(partial(sgd_until, f, loss, bs, dt))
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
@@ -234,7 +259,7 @@ def train(
     _, _, _, _, kernel_tr0 = jit_mean_var_grad(w0, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
     _, _, _, _, kernel_te0 = jit_mean_var_grad(w0, out0te[:ckpt_grad_stats], xte[:ckpt_grad_stats], yte[:ckpt_grad_stats])
 
-    ckpt_loss = 2.0**jnp.arange(-20, -9, 0.5)
+    ckpt_loss = 2.0**jnp.arange(-24, -9, 0.5)
     ckpt_loss = l0 * jnp.concatenate([ckpt_loss, jnp.arange(2**-9, 1, 2**-9), 1 - ckpt_loss[::-1]])
 
     ckpt_loss_grad = 2.0**jnp.arange(-20, -2, 0.5)
@@ -281,6 +306,9 @@ def train(
         stop = False
 
         if l == 0.0:
+            stop = True
+
+        if ckpt_step <= total_step and alpha * jnp.min(pred * ytr) >= mind_stop:
             stop = True
 
         if not jnp.isfinite(l):
@@ -464,6 +492,7 @@ def main():
     parser.add_argument("--L", type=int)
     parser.add_argument("--h", type=int, required=True)
 
+    parser.add_argument("--loss", type=str, default="hinge")
     parser.add_argument("--alpha", type=float, required=True)
 
     parser.add_argument("--bs", type=int, required=True)
@@ -472,6 +501,7 @@ def main():
 
     parser.add_argument("--max_wall", type=float, required=True)
     parser.add_argument("--max_step", type=float, default=np.inf)
+    parser.add_argument("--mind_stop", type=float, default=1.0)
 
     parser.add_argument("--ckpt_step", type=int, default=4096)
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
