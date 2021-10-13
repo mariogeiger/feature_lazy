@@ -10,9 +10,10 @@ from itertools import count
 import haiku as hk
 import jax
 import jax.numpy as jnp
-from jax.config import config
 import numpy as np
 import tensorflow_datasets as tfds
+from jax.config import config
+from jax.experimental.ode import odeint
 
 
 def normalize_act(phi):
@@ -155,6 +156,32 @@ def dataset(dataset, seed_trainset, seed_testset, ptr, pte, **args):
     return xtr, xte, ytr, yte
 
 
+def sgd_drift(f, loss, n, bs, dt, key, w, out0, x, y):
+    assert n * bs <= x.shape[0]
+
+    w2 = odeint(
+        lambda w, t: jax.grad(lambda w: -jnp.mean(loss(f(w, x) - out0, y)), 0)(w),
+        w, jnp.array([0, 2 * dt])
+    )
+    dw_gf = jax.tree_map(lambda a, b: a[1] - b, w2, w)
+
+    i = jax.random.permutation(key, x.shape[0])
+    i = i[:n * bs]
+    o01 = out0[i].reshape((n, bs) + out0.shape[1:])
+    x1 = x[i].reshape((n, bs) + x.shape[1:])
+    y1 = y[i].reshape((n, bs) + y.shape[1:])
+
+    dloss = jax.grad(lambda w, o0, x, y: jnp.mean(loss(f(w, x) - o0, y)), 0)
+
+    g1 = jax.vmap(dloss, (None, 0, 0, 0), 0)(w, o01, x1, y1)
+    w1 = jax.tree_map(lambda a, b: a - dt * b, w, g1)
+
+    g2 = jax.vmap(dloss, (0, None, None, None), 0)(w1, out0, x, y)
+    dw_sgd = jax.tree_map(lambda a, b: jnp.mean(-dt * (a + b), 0), g1, g2)
+
+    return jax.tree_leaves(jax.tree_map(lambda a, b: jnp.sum((a - b)**2), dw_sgd, dw_gf))
+
+
 def mean_var_grad(f, loss, w, out0, x, y):
     out, j = jax.vmap(jax.value_and_grad(f, 0), (None, 0), 0)(w, x)
     j = jnp.concatenate([jnp.reshape(x, (x.shape[0], math.prod(x.shape[1:]))) for x in jax.tree_leaves(j)], 1)  # [x, w]
@@ -236,8 +263,9 @@ def train(
 
     loss = lambda o, y: loss_fun(alpha * o, y) / alpha
 
-    jit_sgd = jax.jit(partial(sgd_until, f, loss, bs, dt))
+    jit_sgd_until = jax.jit(partial(sgd_until, f, loss, bs, dt))
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
+    jit_sgd_drift = jax.jit(partial(sgd_drift, f, loss, 32, bs, dt))
 
     @jax.jit
     def jit_le(w, out0, x, y):
@@ -278,7 +306,7 @@ def train(
 
         total_step = 0
         while True:
-            key_batch, w, current_loss, num_step = jit_sgd(key_batch, w, out0tr, xtr, ytr, current_loss, target_loss, ckpt_step)
+            key_batch, w, current_loss, num_step = jit_sgd_until(key_batch, w, out0tr, xtr, ytr, current_loss, target_loss, ckpt_step)
             t += dt * num_step
             step += num_step
             total_step += num_step
@@ -324,11 +352,13 @@ def train(
             else:
                 target_loss_for_ckpt_grad = 0.0
 
-        mean_f, var_f, mean_l, var_l, kernel, kernel_change = [None] * 6
+        mean_f, var_f, mean_l, var_l, kernel, kernel_change, drift = [None] * 7
         if save_grad:
             mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
             kernel_change = jnp.mean((kernel - kernel_tr0)**2)
             kernel_norm = jnp.mean(kernel**2)
+
+            drift = jit_sgd_drift(key_batch, w, out0tr, xtr, ytr)
 
         train = dict(
             loss=l,
@@ -336,6 +366,7 @@ def train(
             err=err,
             mind=jnp.min(pred * ytr),
             nd=jnp.sum(alpha * pred * ytr < 1.0),
+            drift=drift,
             grad_f_norm=mean_f,
             grad_f_var=var_f,
             grad_l_norm=mean_l,
