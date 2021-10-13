@@ -27,7 +27,7 @@ def normalize_act(phi):
 
 
 def mlp(features, phi, x):
-    assert x.ndim == 1 + 1
+    assert x.ndim <= 1 + 1
 
     for feat in features:
         d = hk.Linear(
@@ -47,7 +47,7 @@ def mlp(features, phi, x):
 
 
 def mnas(h, act, x):
-    assert x.ndim == 1 + 2 + 1
+    assert x.ndim <= 1 + 2 + 1
 
     def conv2d(c, k, s, x):
         return hk.Conv2D(
@@ -104,7 +104,7 @@ def mnas(h, act, x):
 
 
 def mean_var_grad(f, loss, w, out0, x, y):
-    j = jax.jacobian(f, 0)(w, x)
+    out, j = jax.vmap(jax.value_and_grad(f, 0), (None, 0), 0)(w, x)
     j = jnp.concatenate([jnp.reshape(x, (x.shape[0], math.prod(x.shape[1:]))) for x in jax.tree_leaves(j)], 1)  # [x, w]
     # j[i, j] = d f(w, x_i) / d w_j
     mean_f = jnp.mean(j, 0)
@@ -114,15 +114,16 @@ def mean_var_grad(f, loss, w, out0, x, y):
     kernel = j @ j.T
 
     dl = jax.vmap(jax.grad(loss, 0), (0, 0), 0)
-    lj = dl(f(w, x) - out0, y)[:, None] * j
+    lj = dl(out - out0, y)[:, None] * j
     mean_l = jnp.mean(lj, 0)
     var_l = jnp.mean(jnp.sum((lj - mean_l)**2, 1))
 
     return jnp.sum(mean_f**2), var_f, jnp.sum(mean_l**2), var_l, kernel
 
 
-def dataset(dataset, seed_trainset, seed_testset, ptr, pte, d, **args):
+def dataset(dataset, seed_trainset, seed_testset, ptr, pte, **args):
     if dataset in ['stripe', 'sign']:
+        d = args['d']
         xtr = jax.random.normal(jax.random.PRNGKey(seed_trainset), (ptr, d))
         xte = jax.random.normal(jax.random.PRNGKey(seed_testset), (pte, d))
 
@@ -382,9 +383,7 @@ def train(
             return
 
 
-def execute(arch, h, L, act, seed_init, **args):
-    print(f"device={jnp.ones(3).device_buffer.device()} dtype={jnp.ones(3).dtype}", flush=True)
-
+def init(arch, h, L, act, seed_init, **args):
     if act == 'silu':
         act = jax.nn.silu
     if act == 'gelu':
@@ -415,20 +414,28 @@ def execute(arch, h, L, act, seed_init, **args):
     w = model.init(jax.random.PRNGKey(seed_init), xtr)
     print('network initialized', flush=True)
 
-    arch = dict(
+    return model, w, xtr, xte, ytr, yte
+
+
+def execute(**args):
+    print(f"device={jnp.ones(3).device_buffer.device()} dtype={jnp.ones(3).dtype}", flush=True)
+
+    model, w, xtr, xte, ytr, yte = init(**args)
+
+    darch = dict(
         params_shapes=[p.shape for p in jax.tree_leaves(w)],
         params_sizes=[p.size for p in jax.tree_leaves(w)],
     )
 
     for d in train(model.apply, w, xtr, xte, ytr, yte, **args):
         yield dict(
-            arch=arch,
+            arch=darch,
             sgd=dict(dynamics=d),
             finished=False,
         )
 
     yield dict(
-        arch=arch,
+        arch=darch,
         sgd=dict(dynamics=d),
         finished=True,
     )
