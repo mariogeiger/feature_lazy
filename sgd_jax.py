@@ -205,11 +205,16 @@ def mean_var_grad(f, loss, w, out0, x, y):
 
 
 def sgd(f, loss, bs, dt, key, w, out0, xtr, ytr):
-    key, k = jax.random.split(key)
-    i = jax.random.permutation(k, xtr.shape[0])[:bs]
-    x = xtr[i]
-    y = ytr[i]
-    o0 = out0[i]
+    if bs < xtr.shape[0]:
+        key, k = jax.random.split(key)
+        i = jax.random.permutation(k, xtr.shape[0])[:bs]
+        x = xtr[i]
+        y = ytr[i]
+        o0 = out0[i]
+    else:
+        x = xtr
+        y = ytr
+        o0 = out0
     lo, g = jax.value_and_grad(lambda w: jnp.mean(loss(f(w, x) - o0, y)))(w)
     w = jax.tree_multimap(lambda w, g: w - dt * g, w, g)
     return key, w, lo
