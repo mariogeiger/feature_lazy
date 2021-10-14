@@ -1,12 +1,12 @@
 import argparse
 import math
+import operator
 import os
 import pickle
 import subprocess
 import time
 from functools import partial, reduce
 from itertools import count
-import operator
 
 import haiku as hk
 import jax
