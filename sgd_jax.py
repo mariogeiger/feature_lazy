@@ -356,7 +356,7 @@ def train(
             else:
                 target_loss_for_ckpt_grad = 0.0
 
-        mean_f, var_f, mean_l, var_l, kernel, kernel_change, drift = [None] * 7
+        mean_f, var_f, mean_l, var_l, kernel, kernel_change, kernel_norm, drift = [None] * 8
         if save_grad:
             mean_f, var_f, mean_l, var_l, kernel = jit_mean_var_grad(w, out0tr[:ckpt_grad_stats], xtr[:ckpt_grad_stats], ytr[:ckpt_grad_stats])
             kernel_change = jnp.mean((kernel - kernel_tr0)**2)
