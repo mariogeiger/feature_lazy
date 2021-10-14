@@ -184,7 +184,7 @@ def sgd_drift(f, loss, n, bs, dt, key, w, out0, x, y):
 
 def mean_var_grad(f, loss, w, out0, x, y):
     out, j = jax.vmap(jax.value_and_grad(f, 0), (None, 0), 0)(w, x)
-    j = jnp.concatenate([jnp.reshape(x, (x.shape[0], math.prod(x.shape[1:]))) for x in jax.tree_leaves(j)], 1)  # [x, w]
+    j = jnp.concatenate([jnp.reshape(x, (x.shape[0], -1)) for x in jax.tree_leaves(j)], 1)  # [x, w]
     # j[i, j] = d f(w, x_i) / d w_j
     mean_f = jnp.mean(j, 0)
     var_f = jnp.mean(jnp.sum((j - mean_f)**2, 1))
