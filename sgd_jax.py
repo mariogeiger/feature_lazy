@@ -287,7 +287,7 @@ def train(
     ckpt_loss = l0 * jnp.concatenate([ckpt_loss, jnp.arange(2**-9, 1, 2**-9), 1 - ckpt_loss[::-1]])
 
     ckpt_loss_grad = 2.0**jnp.arange(-20, -2, 0.5)
-    ckpt_loss_grad = l0 * jnp.concatenate([ckpt_loss_grad, jnp.arange(2**-2, 1.0, 2**-4)])
+    ckpt_loss_grad = l0 * jnp.concatenate([ckpt_loss_grad, jnp.arange(2**-2, 1.0, 2**-4), jnp.array([1.0 - 2**-20])])
 
     target_loss = l0
     current_loss = l0
