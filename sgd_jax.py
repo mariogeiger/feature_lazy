@@ -251,7 +251,7 @@ def shinge(o, y):
 
 def train(
     f, w0, xtr, xte, ytr, yte, bs, dt, seed_batch, alpha, loss,
-    ckpt_step, ckpt_grad_stats, ckpt_kernels,
+    ckpt_step, ckpt_grad_stats, ckpt_kernels, ckpt_drift_n0,
     max_wall, max_step, mind_stop, **args
 ):
     key_batch = jax.random.PRNGKey(seed_batch)
@@ -269,7 +269,7 @@ def train(
 
     jit_sgd_until = jax.jit(partial(sgd_until, f, loss, bs, dt))
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
-    jit_sgd_drift = jax.jit(partial(sgd_drift, f, loss, 32, bs, dt))
+    jit_sgd_drift = jax.jit(partial(sgd_drift, f, loss, ckpt_drift_n0, bs, dt))
 
     @jax.jit
     def jit_le(w, out0, x, y):
@@ -362,7 +362,8 @@ def train(
             kernel_change = jnp.mean((kernel - kernel_tr0)**2)
             kernel_norm = jnp.mean(kernel**2)
 
-            drift = jit_sgd_drift(key_batch, w, out0tr, xtr, ytr)
+            if ckpt_drift_n0 > 0:
+                drift = jit_sgd_drift(key_batch, w, out0tr, xtr, ytr)
 
         train = dict(
             loss=l,
@@ -536,6 +537,7 @@ def main():
 
     parser.add_argument("--ckpt_step", type=int, default=4096)
     parser.add_argument("--ckpt_grad_stats", type=int, default=0)
+    parser.add_argument("--ckpt_drift_n0", type=int, default=0)
     parser.add_argument("--ckpt_kernels", type=int, default=0)
 
     parser.add_argument("--dtype", type=str, default="f32")
