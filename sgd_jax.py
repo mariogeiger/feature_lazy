@@ -204,6 +204,15 @@ def mean_var_grad(f, loss, w, out0, x, y):
     return jnp.sum(mean_f**2), var_f, jnp.sum(mean_l**2), var_l, kernel
 
 
+def delta_pred(f, loss, bs, dt, key, w, out0, xtr, ytr, xte):
+    out0tr = f(w, xtr)
+    out0te = f(w, xte)
+    _, w, _ = sgd(f, loss, bs, dt, key, w, out0, xtr, ytr)
+    out1tr = f(w, xtr)
+    out1te = f(w, xte)
+    return out1tr - out0tr, out1te - out0te
+
+
 def sgd(f, loss, bs, dt, key, w, out0, xtr, ytr):
     if bs < xtr.shape[0]:
         key, k = jax.random.split(key)
@@ -275,6 +284,7 @@ def train(
     jit_sgd_until = jax.jit(partial(sgd_until, f, loss, bs, dt))
     jit_mean_var_grad = jax.jit(partial(mean_var_grad, f, loss))
     jit_sgd_drift = jax.jit(partial(sgd_drift, f, loss, ckpt_drift_n0, bs, dt))
+    jit_delta_pred = jax.jit(partial(delta_pred, f, loss, bs, dt))
 
     @jax.jit
     def jit_le(w, out0, x, y):
@@ -370,6 +380,8 @@ def train(
             if ckpt_drift_n0 > 0:
                 drift = jit_sgd_drift(key_batch, w, out0tr, xtr, ytr)
 
+        delta_pred_tr, delta_pred_te = jit_delta_pred(key_batch, w, out0tr, xtr, ytr, xte)
+
         train = dict(
             loss=l,
             aloss=alpha * l,
@@ -386,6 +398,11 @@ def train(
             kernel=(kernel if ckpt_kernels else None),
             kernel_change=kernel_change,
             kernel_norm=kernel_norm,
+            delta_pred_abs=dict(
+                min=jnp.min(jnp.abs(delta_pred_tr)),
+                max=jnp.max(jnp.abs(delta_pred_tr)),
+                median=jnp.median(jnp.abs(delta_pred_tr)),
+            ),
         )
         del l, err
 
@@ -411,6 +428,11 @@ def train(
             kernel=(kernel if ckpt_kernels else None),
             kernel_change=kernel_change,
             kernel_norm=kernel_norm,
+            delta_pred_abs=dict(
+                min=jnp.min(jnp.abs(delta_pred_te)),
+                max=jnp.max(jnp.abs(delta_pred_te)),
+                median=jnp.median(jnp.abs(delta_pred_te)),
+            ),
         )
         del l, err
 
